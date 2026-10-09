@@ -1,0 +1,202 @@
+---
+title: "Segmenting histone-mark signal"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Segmenting histone-mark signal}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(chiptools)
+```
+
+The central chromatin problem in this analysis: given normalised ChIP-seq
+signal at a few thousand promoters, decide for each gene and each mark
+whether the mark is **absent**, **present**, or **present at an extreme level
+that is probably not the same biological thing**.
+
+A single threshold does not work, for two reasons visible in the data. The
+distribution is bimodal — background and real signal — so the sensible cut
+between them is where the two components cross, not at a round number. And
+there is a long right tail of a few hundred very highly bound promoters that,
+left in, drags the signal component upward and moves that crossing point.
+
+So the segmentation is three thresholds, found in two steps.
+
+```{r, eval = FALSE}
+# 1. where does the upper tail start?
+cutoffs <- trim_upper_tail(histone_rlog_prune, derivative_threshold = 4e-4)
+
+# 2. mixture threshold per sample, fitted with the tail excluded
+breaks <- chip_binarize_tail_removed(histone_rlog_prune, cutoffs)
+
+# 3. call every gene, then collapse replicates within condition
+calls <- chip_categorize_and_collapse(signal_with_gene_id, breaks)
+```
+
+## Step 1: find the tail
+
+`trim_upper_tail()` ranks each sample's values, LOESS-smooths the rank/value
+curve, differentiates it, and takes the knee — the rank at which the smoothed
+first derivative falls below `derivative_threshold`. Below that rank, signal
+climbs steeply with rank; above it, you are in the tail.
+
+```{r}
+set.seed(1)
+# background, real signal, and a small extreme tail
+signal <- c(stats::rnorm(1500, 0.25, 0.06),
+            stats::rnorm(900,  0.62, 0.09),
+            stats::rnorm(120,  0.95, 0.03))
+dat <- data.frame(sample_a = signal)
+
+hist(dat$sample_a, breaks = 80, col = "grey", border = "white",
+     main = "Two components plus a tail", xlab = "normalised signal")
+```
+
+The threshold is **on the scale of the smoothed derivative**, which depends on
+how many rows you have. It does not transfer between data sets. The notebooks
+used `4e-4` for the GNP promoter set and `5.5e-4` for the MB set, and both
+were chosen by looking at the lower panel of the diagnostic plot
+`trim_upper_tail()` prints. Treat any default as a starting point:
+
+```{r, eval = FALSE}
+# print the diagnostics, decide, then re-run
+cutoffs <- trim_upper_tail(histone_rlog_prune, derivative_threshold = 4e-4,
+                           generate_plots = TRUE)
+cutoffs
+#>          Column CrossingRank CrossingSmoothedValue
+#> 1      sample_a         2402             0.8161...
+```
+
+Samples where no crossing is found are dropped from the table, so check
+`nrow(cutoffs)` against `ncol(histone_rlog_prune)`.
+
+## Step 2: the bound/unbound threshold
+
+With the tail known, `chip_binarize_tail_removed()` runs
+`binarize_counts()` per sample on the values *below* that sample's tail
+cutoff. `binarize_counts()` fits a two-component normal mixture and solves
+for the point where the posterior probability of belonging to the background
+component equals 0.5:
+
+```{r}
+if (requireNamespace("mixtools", quietly = TRUE)) {
+  below_tail <- signal[signal < 0.88]
+  fit <- binarize_counts(below_tail, plot = FALSE, return_what = "summary")
+  round(fit, 4)
+}
+```
+
+`cutoff_50` is the posterior-0.5 crossing and is the bound/unbound call.
+`cutoff_75` is the stricter 0.75 crossing, and is what the returned `bin`
+column actually uses — worth knowing, since it means the default 0/1 call is
+conservative.
+
+Fitting below the tail matters. Here is the same fit with the tail left in:
+
+```{r}
+if (requireNamespace("mixtools", quietly = TRUE)) {
+  with_tail <- binarize_counts(signal, plot = FALSE, return_what = "summary")
+  without   <- binarize_counts(signal[signal < 0.88], plot = FALSE,
+                               return_what = "summary")
+  data.frame(
+    row.names  = c("tail included", "tail excluded"),
+    cutoff_50  = c(with_tail[["cutoff_50"]],  without[["cutoff_50"]]),
+    mean_upper = c(with_tail[["mean_upper"]], without[["mean_upper"]])
+  )
+}
+```
+
+The signal component's mean is pulled up by the tail, and the threshold moves
+with it.
+
+### If the mixture will not fit
+
+- **A dominant zero bin.** Count data over promoters often has a zero spike
+  tall enough to swamp every other bin and capture the whole background
+  component. `soften_zero()` replaces a random subset of the zeros with `NA`
+  so the spike is at most `scale_max` times the tallest other bin.
+- **Right-skewed, un-logged signal.** A gamma mixture fits better than a
+  normal one: `binarize_counts_p()`, which estimates its own starting values
+  from the data quantiles and retries with jitter.
+- **More than two states.** `trinarize_counts()` for three, or
+  `split_counts()` to let BIC choose the component count.
+
+## Step 3: call genes and collapse replicates
+
+`chip_categorize_and_collapse()` applies both thresholds per replicate to get
+`unbound` / `bound` / `tail`, then collapses the replicates of each condition
+with a precedence rule — **tail beats bound, bound beats unbound**. A gene
+called `tail` in any replicate is `tail` for that condition.
+
+```{r, eval = FALSE}
+calls <- chip_categorize_and_collapse(signal_with_gene_id, breaks)
+table(calls$condition, calls$category)
+```
+
+The input needs a `gene_id` column and one column per replicate; `breaks`
+needs `replicate_names`, `condition`, `cutoff_50` and
+`CrossingSmoothedValue`. In practice `breaks` is the `chip_binarize_tail_removed()`
+output left-joined to a replicate-to-condition table.
+
+## The clustering alternative
+
+Instead of thresholds, cluster the values. `chip_mclust_icl_all()` fits
+Gaussian mixtures per sample over a range of component counts, picks one by
+ICL, and gives the held-out tail its own top class:
+
+```{r, eval = FALSE}
+classes <- chip_mclust_icl_all(histone_rlog_prune, cutoffs, G_range = 2:8)
+```
+
+`chip_segment()` is `trim_upper_tail()` then `chip_mclust_icl_all()` in one
+call:
+
+```{r, eval = FALSE}
+seg <- chip_segment(histone_rlog_prune, deriv_cutoff = 4e-4)
+seg$cutoffs
+head(seg$classes)
+```
+
+Use the threshold route when you want a call you can explain in a figure
+legend, and the clustering route when you want to discover how many states
+there are. The notebooks use thresholds for the main figures.
+
+## Normalisation upstream
+
+Both routes assume the samples are on a comparable scale.
+`wins_norm_histones()` clips each column at a fixed *number of points* from
+each end — not a quantile — then rescales to 0–1:
+
+```{r, eval = FALSE}
+histone_norm <- wins_norm_histones(histone_rlog_bm, low = 500, high = 20)
+```
+
+Clipping by point count keeps the rescaling stable when one sample has a
+handful of extreme outliers, which quantile winsorising does not. Note that
+`median_subtract` cannot change the default output: min-max rescaling is
+shift-invariant, so a constant shift cancels. It is observable only with
+`normalize = FALSE`. See `?wins_norm_histones`.
+
+`plot_norm_heatmap()` is the other normalisation, for plotting rather than
+calling: divide each gene by its own row mean and take `log2`, giving a
+matrix symmetric about zero that a diverging palette reads correctly.
+
+## Downstream
+
+Once genes are called, the comparisons:
+
+- `chip_scatter_cutoffs()` — two samples scattered with the bound-not-tail
+  window drawn as a box, a gene set highlighted, marginal densities
+- `chip_gene_group_comp()` — binding in early vs late genes, with a Wilcoxon
+  p-value. Pass a `t50_cutoff`; with `NULL` it filters `t50_cat` to
+  `"Late"`/`"Mid"` and then tests for `"early"`/`"late"`, so the p-value is
+  `NA` by construction
+- `plot_tsne_kmeans()` — t-SNE of the signal matrix beside a cluster-ordered
+  heatmap, colours matched between panels by `opti_map()`
+- `chip_de_rpm()` — DESeq2 differential binding between two conditions

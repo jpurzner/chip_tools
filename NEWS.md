@@ -1,3 +1,96 @@
+# chiptools 0.2.0
+
+Brings in the code the `Ezh2_2022` analysis notebooks were carrying inline,
+and documents the pipeline they implement.
+
+## Vignettes
+
+Three, all built from code that runs:
+
+- **`overview`** — the seven pipeline stages, the parameter values the
+  analysis actually settled on, and how to migrate notebook code off the old
+  `source()` calls and the old mixture return flags.
+- **`histone-segmentation`** — the three-threshold segmentation, with a worked
+  demonstration of why the upper tail has to be excluded before fitting.
+- **`timecourse`** — the time reference, interpolate/align/pool, t50, and
+  gene classification, including what `pval_both` changes.
+
+## The notebooks now run on the package alone
+
+All 28 files the notebooks `source()`d from `~/Dropbox/jp_seq` are present, so
+
+```r
+source("~/Dropbox/jp_seq/binarize_counts.R")   # x 28
+```
+
+becomes `library(chiptools)`. The seven that 0.1.0 left out are now in:
+`edgeeat()`, `memb2graph_edgeeat()`, `multi_memb_prod()`,
+`recursive_edgeeater()` (the fuzzy-membership graph lineage), plus
+`go_cluster()`, `go2sym()` and `plot_norm_heatmap()`.
+
+## New functions from the notebooks
+
+Repeated inline definitions, lifted out with their globals turned into
+arguments. Renamed to match the rest of the package where needed.
+
+| New | Was | Copies in the notebooks |
+| --- | --- | --- |
+| `classify_timecourse_genes()` | `group_genes_txchange()` | 4 |
+| `call_mix_bin()` | same | 6 |
+| `average_df()` | same | 4 |
+| `lookup_count()` | same | 3 |
+| `gg_color_hue()` | same | 2 |
+| `convert_mouse_gene_list()` | `convertMouseGeneList()` | 5 |
+| `check_diff_genes()` | same | 1 |
+| `compute_metagene()` | same | 1 |
+| `percentile_ranks()` | `percentile.ranks()` | 1 |
+| `squish_trans()` | same | 1 |
+
+`classify_timecourse_genes()` is the one worth reading the docs for: it is
+the central gene classifier, and its cut points, column names and the
+`pval_both` switch were all hard-coded in the notebook copies.
+
+79 exports, 139 testthat assertions.
+
+## Bug fixes
+
+- **`topGO_split()` worked only by coincidence.** It split on
+  `gnp_multi_split[, split_cat]` — a global — rather than its own `t50_df`
+  argument. The notebooks happened to call it as
+  `topGO_split(gnp_multi_split, ...)`, so the global and the argument were
+  the same object. Any other input was silently split on the wrong data.
+- **`edgeeat(memb_cutoff > 0)` transferred membership it should not have.**
+  The cutoff mask *replaced* the next-rank mask instead of being combined
+  with it, so genes that ranked higher on a surviving vertex had their
+  membership moved anyway. Now the intersection of both conditions.
+- **`recursive_edgeeater()` returned `metrif_df`**, so `$metric_df` was
+  `NULL`. It also accepted `memb_cutoff` and then hard-coded `0` on the
+  `edgeeat()` call.
+- **`go_cluster()` ignored `cutoff`** — `0.5` was hard-coded in the
+  comparison.
+- **`plot_norm_heatmap()` could not screen out `-Inf`.** It stayed on a data
+  frame, where `max()` works but `is.finite()` errors with "default method
+  not implemented for type 'list'". Now works on a matrix throughout, and
+  takes the maximum over finite values only.
+- **`go2sym()` indexed its result column by position** (`, 5`), so a schema
+  change in `org.Mm.eg.db` would have silently returned the wrong column.
+  Now named.
+- **`average_df()`** (as `average_df` in the notebooks) errored on a dropped
+  factor level, because the zero-column subset broke `rowMeans()`.
+- **`lookup_count()`, `compute_metagene()`** read globals or hard-coded an
+  identifier column name; both are arguments.
+- igraph calls moved off the deprecated `get.edge.attribute()` /
+  `set.*.attribute()` / `graph.data.frame()` spellings.
+
+## Other changes
+
+- `memb2graph_edgeeat()` and `plot_norm_heatmap()` no longer plot or print
+  unconditionally; both gained arguments for it.
+- `plot_norm_heatmap()` errors rather than returning an empty matrix when no
+  gene clears `cutoff`.
+- New `Suggests`: `AnnotationDbi`, `biomaRt`, `knitr`, `pbapply`, `rmarkdown`,
+  `scales`.
+
 # chiptools 0.1.0
 
 First packaged release. Previously 38 loose `.R` files at the repository root,
