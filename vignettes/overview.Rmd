@@ -1,0 +1,236 @@
+---
+title: "The GNP/MB analysis pipeline"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The GNP/MB analysis pipeline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+These functions were written for one body of work: cerebellar granule neuron
+precursor (GNP) differentiation and its failure in SHH-subgroup
+medulloblastoma (MB). The analysis lives in the `Ezh2_2022` notebooks and runs
+in seven stages. This vignette is the map; the other vignettes cover the
+stages that have real machinery behind them.
+
+Nothing here is executed at build time — the inputs are large and not
+distributed with the package. The code is the call sequence the notebooks
+actually use, with the paths and hard-coded globals turned into arguments.
+
+## The question
+
+GNPs proliferate, then differentiate on a schedule. Each gene has a time at
+which its expression peaks and a time at which it reaches half its maximum —
+the **t50**. Order genes by t50 and you have the differentiation programme as
+a sequence. The analysis asks which histone marks are present at each gene's
+promoter, and whether the *order* of that programme is reflected in the
+chromatin, in normal development and in tumour.
+
+So almost everything reduces to two objects:
+
+- **a t50 per gene**, from the RNA-seq/TRAP time courses
+- **a per-mark, per-gene call** — unbound, bound, or upper-tail — from the
+  ChIP-seq signal
+
+and then the comparison between them.
+
+## The seven stages
+
+| Stage | Notebook | What it produces | Key functions |
+| --- | --- | --- | --- |
+| 1 | `1_transcript_timecourse*.Rmd` | interpolated time courses, t50 per gene | `time_expr_interp()`, `time_expr_align()`, `time_expr_avg()`, `expr_half_max()`, `time_of_change()` |
+| 2 | `2_scRNAseq*.Rmd` | single-cell validation of the bulk ordering | (Seurat; little of it is in this package) |
+| 3 | `3_gene_classification*.Rmd` | genes cut into max/t50 windows | `classify_timecourse_genes()`, `squish_trans()` |
+| 4 | `4_promoter_histones*.Rmd` | per-mark promoter calls in GNP | `trim_upper_tail()`, `chip_binarize_tail_removed()`, `chip_categorize_and_collapse()`, `plot_tsne_kmeans()` |
+| 5 | `5_MB_histones*.Rmd` | the same in MB, compared to GNP | `chip_de_rpm()`, `chip_scatter_cutoffs()`, `gg_color_hue()` |
+| 6 | `6_Human_MB.Rmd` | carry the signature onto human data | `convert_mouse_gene_list()`, `percentile_ranks()`, `compute_metagene()` |
+| 7 | `7_GNP_diff_go_terms*.Rmd` | GO/KEGG enrichment along t50 | `t50window()`, `topGO_wrap()`, `go_cluster()`, `go2sym()`, `check_diff_genes()` |
+
+Each stage has several dated copies of its notebook. Where they differ, the
+latest is the one these vignettes follow.
+
+## Stage 1 — t50 from two time courses
+
+Two studies sampled cerebellar development at different ages. They are
+interpolated onto one axis, offset-corrected against each other, pooled, and
+then each gene's half-maximum time is read off.
+
+```{r}
+library(chiptools)
+
+# The time axis: every age, with a logical column per study marking where
+# that study actually has a sample.
+time_ref <- data.frame(time = c(paste0("E", 15:20), paste0("P", 0:56)))
+time_ref$scott  <- time_ref$time %in% c("E15", "P1", "P7", "P14")
+time_ref$hatten <- time_ref$time %in% c("P0", "P7", "P12", "P18", "P21", "P56")
+rownames(time_ref) <- time_ref$time
+
+expr_list <- list(scott = scott_tpm, hatten = hatten_trap)
+
+interp  <- time_expr_interp(expr_list, time_ref[, c("scott", "hatten")])
+aligned <- time_expr_align(interp)       # remove the between-study offset
+pooled  <- time_expr_avg(aligned)        # one trajectory per gene
+
+t50 <- expr_half_max(pooled)
+changes <- time_of_change(pooled, thres = 0.2)
+```
+
+`expr_half_max()` returns t50 on the *interpolated* index. To plot it against
+real sampling ages, map it back:
+
+```{r}
+t50_plot <- t50_to_compressed(t50, time_ref[, c("scott", "hatten")])
+```
+
+See `vignette("timecourse", package = "chiptools")` for the detail, including
+why the alignment step is needed and what `expr_half_max_min()` adds.
+
+## Stage 3 — cut genes into developmental windows
+
+```{r}
+# the values the notebooks settled on
+classified <- classify_timecourse_genes(
+  toc_t50,
+  fc_cutoff    = 2,
+  p_val_cutoff = 0.001,
+  expr_cutoffs = c(max_expr_Scott = 100, max_expr_Hatten = 100),
+  pval_both    = FALSE
+)
+
+table(classified$max_t50_cat)
+```
+
+This is where a gene becomes "an E15 gene that turns on early" or
+"unexpressed". The cutoffs were chosen by sweeping them and watching the
+category counts, which `table_only = TRUE` is for — the notebooks swept fold
+change over 1, 1.5 and 2 and ran each with `pval_both` both ways:
+
+```{r}
+sweep_fc <- sapply(c(1, 1.5, 2), function(fc) {
+  classify_timecourse_genes(toc_t50, fc_cutoff = fc, p_val_cutoff = 0.001,
+                            expr_cutoffs = c(max_expr_Scott = 100,
+                                             max_expr_Hatten = 100),
+                            table_only = TRUE)
+})
+```
+
+Because the override levels are declared up front, every column of that sweep
+has the same 11 rows and `sapply` gives a clean matrix.
+
+## Stage 4 — promoter histone calls
+
+The core chromatin step. See
+`vignette("histone-segmentation", package = "chiptools")` for the full
+treatment; the short version:
+
+```{r}
+histone_norm <- wins_norm_histones(histone_rlog_bm)
+
+# 4e-4 for the GNP promoter set, 5.5e-4 for the MB set -- the threshold is on
+# the scale of the smoothed derivative and so depends on how many rows you
+# have. Look at the lower diagnostic panel before trusting a value.
+cutoffs <- trim_upper_tail(histone_rlog_prune, derivative_threshold = 4e-4)
+breaks  <- chip_binarize_tail_removed(histone_rlog_prune, cutoffs)
+calls   <- chip_categorize_and_collapse(signal_with_gene_id, breaks)
+```
+
+Three thresholds per sample come out of this: `cutoff_50` (bound vs unbound,
+from the mixture) and `CrossingSmoothedValue` (bound vs upper tail, from the
+rank-curve knee). Everything downstream is a comparison across those windows.
+
+## Stage 7 — GO along the differentiation axis
+
+Rather than one enrichment on one pooled gene set, genes are split by their
+developmental category and each group is tested separately, so a term can be
+attributed to a point in the differentiation programme.
+
+```{r}
+# one enrichment per level of a classification column
+res <- topGO_wrap(histone_k_toc_t50, "diff_gene", "mgi_symbol",
+                  ontology = "BP", topNodes = 100)
+
+# or split explicitly on the combined max/t50/fold-change category
+go_split <- topGO_split(gnp_multi_split, all_genes_exp,
+                        split_cat = "max_t50_avgfc_cat", ont = "MF")
+
+# collapse the redundant parent/child terms GO returns in bulk
+sim <- outer(res$GO, res$GO, Vectorize(function(x, y)
+  GOSemSim::goSim(x, y, semData = mmGO, measure = "Wang")))
+dimnames(sim) <- list(res$GO, res$GO)
+res <- go_cluster(res, sim, cutoff = 0.7)
+
+# which terms are driven by the differentiation set?
+res <- check_diff_genes(res, diff_genes)
+```
+
+`t50window()` is the alternative: bin genes into equal-sized windows along
+t50 and test each window with `topGO_timeseries()`, which places a term in
+developmental time rather than in a category. The notebooks in this directory
+use the category split above; `t50window()` is used in
+`t50window_MF_2024_10_24.Rmd`.
+
+### A note on `topGO_split()`
+
+The notebooks call it as:
+
+```{r}
+topGO_split(gnp_multi_split, all_genes_exp, "max_t50_avgfc_cat", ont = "MF")
+```
+
+Before the restructure, the function body split on
+`gnp_multi_split[, split_cat]` — reading a *global* of that name rather than
+its own first argument. It worked here only because the caller happened to
+pass a variable with exactly that name. Any other input was silently split on
+the wrong data, or failed with "object not found". It now uses its argument.
+
+## Migrating the notebooks
+
+Two changes affect existing notebook code.
+
+**`source()` calls go away.** All 28 files the notebooks sourced from
+`~/Dropbox/jp_seq` are now package functions, so
+
+```{r}
+source("~/Dropbox/jp_seq/binarize_counts.R")
+source("~/Dropbox/jp_seq/trim_upper_tail.R")
+# ... 26 more
+```
+
+becomes `library(chiptools)`.
+
+**The mixture return flags collapsed into one argument.** The old flags were
+mutually exclusive but resolved by a cascading `if`/`else if`, so setting two
+did something arbitrary:
+
+```{r}
+# before
+binarize_counts(histone_trim, return_cutoff_mean = TRUE, label_name = "TEST")
+# after
+binarize_counts(histone_trim, return_what = "summary", label_name = "TEST")
+```
+
+`return_cutoff = TRUE` becomes `return_what = "cutoffs"`, `return_mean = TRUE`
+becomes `return_what = "mean_upper"`. The returned `"summary"` vector has the
+same seven names as before, so downstream cutoff-table code is unaffected.
+
+Renamed on extraction, to match the rest of the package:
+`group_genes_txchange()` to `classify_timecourse_genes()`,
+`percentile.ranks()` to `percentile_ranks()`, `convertMouseGeneList()` to
+`convert_mouse_gene_list()`.
+
+## What is not in here
+
+- **Stage 2 (scRNA-seq)** is almost entirely Seurat, and stayed in the
+  notebooks.
+- **Stage 6 (human MB)** is mostly survival analysis; only the three small
+  helpers above were extracted.
+- **`remove_intersect_all()`** cannot run on current R — it needs `rgeos`,
+  archived from CRAN in October 2023. See `NEWS.md`.
+- The **figure assembly** — which panel goes where, which genes get labelled —
+  is genuinely per-figure and belongs in a notebook. `plot_tsne_kmeans()` and
+  `line_scatter_facet()` return `gtable`s precisely so a notebook can
+  rearrange them.

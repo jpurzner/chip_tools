@@ -1,0 +1,254 @@
+---
+title: "Time courses, t50, and gene classification"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Time courses, t50, and gene classification}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r setup}
+library(chiptools)
+```
+
+The differentiation programme is a *sequence*: genes turn on in an order. To
+compare that order against chromatin, each gene needs a single number saying
+when it turns on. That number is the **t50** — the time at which expression
+reaches half its range.
+
+Getting there means reconciling two studies that sampled cerebellar
+development at different ages.
+
+```{r, eval = FALSE}
+interp  <- time_expr_interp(expr_list, time_ref)
+aligned <- time_expr_align(interp)
+pooled  <- time_expr_avg(aligned)
+t50     <- expr_half_max(pooled)
+```
+
+## The time reference
+
+`time_ref` is the whole construction. One row per age on the full axis, one
+logical column per study marking where that study has a sample:
+
+```{r}
+time_ref <- data.frame(time = c(paste0("E", 15:20), paste0("P", 0:56)))
+time_ref$scott  <- time_ref$time %in% c("E15", "P1", "P7", "P14")
+time_ref$hatten <- time_ref$time %in% c("P0", "P7", "P12", "P18", "P21", "P56")
+rownames(time_ref) <- time_ref$time
+
+head(time_ref, 10)
+sum(time_ref$scott)
+sum(time_ref$hatten)
+```
+
+Column order must match the order of `expr_list`, and each study's expression
+matrix must have its columns in time order. Nothing checks this for you, and
+getting it wrong produces a plausible-looking wrong answer — so it is worth
+asserting:
+
+```{r, eval = FALSE}
+stopifnot(
+  ncol(expr_list$scott)  == sum(time_ref$scott),
+  ncol(expr_list$hatten) == sum(time_ref$hatten),
+  identical(names(expr_list), c("scott", "hatten"))
+)
+```
+
+## Interpolate, align, pool
+
+`time_expr_interp()` linearly interpolates each study onto the full axis,
+giving matrices of the same shape with `NA` outside each study's sampled
+range:
+
+```{r}
+# a toy gene measured by both studies, on their own schedules
+scott  <- matrix(c(1, 3, 7, 9), nrow = 1,
+                 dimnames = list("Gene1", NULL))
+hatten <- matrix(c(2.5, 5.5, 7.5, 8.5, 9, 9.5), nrow = 1,
+                 dimnames = list("Gene1", NULL))
+
+interp <- time_expr_interp(list(scott = scott, hatten = hatten),
+                           time_ref[, c("scott", "hatten")])
+
+length(interp)
+dim(interp[[1]])
+round(interp[[1]][1, 1:12], 2)
+```
+
+`time_expr_align()` then removes the per-gene offset between studies, using
+the ages where they overlap. Without it, pooling averages a systematic
+platform difference — TRAP microarray against RNA-seq — into the trajectory,
+which shifts t50. `time_expr_avg()` pools the aligned matrices element-wise,
+ignoring `NA`:
+
+```{r}
+pooled <- time_expr_avg(interp)
+dim(pooled)
+round(pooled[1, 1:12], 2)
+```
+
+`time_expr_align()` is written for exactly two studies; the source carries
+`2DS FIX` markers where that assumption is baked in.
+
+## t50
+
+```{r}
+t50 <- expr_half_max(pooled)
+t50
+```
+
+`expr_half_max()` finds the midpoint between each gene's minimum and maximum
+and interpolates the crossing, restricted to the monotonic stretch between
+those two extremes — so a gene that rises, falls, and rises again gets the
+timing of its dominant move rather than an average of all three.
+
+Genes whose maximum is below zero return `NA`, and the result is capped at
+the last genuinely sampled time point.
+
+### Genes that go up and then down
+
+For those, one t50 is misleading. `expr_half_max_min()` splits each
+trajectory into its dominant move and the largest opposing move elsewhere,
+reporting a timing, a log2 fold change and a direction for each:
+
+```{r}
+up_then_down <- matrix(c(1, 4, 8, 9, 7, 3, 1), nrow = 1,
+                       dimnames = list("Gene2", NULL))
+expr_half_max_min(up_then_down)
+```
+
+A zero means no move was found in that direction. **This works on a matrix,
+not a list** — the list branch collapses the six-element result to a single
+number. Use `lapply()` over your studies.
+
+### Describing the shape
+
+`time_of_change()` gives a fuller description: where each trajectory rises and
+falls, for how long, and how much of the total change each run accounts for.
+
+```{r}
+tc <- time_of_change(rbind(Gene1 = pooled[1, 1:20],
+                           Gene2 = rev(pooled[1, 1:20])), thres = 0.2)
+tc[, c("max.val", "min.val", "change.total", "inc.span", "dec.span")]
+```
+
+`inc.start` and `inc.stop` use the sentinels 100 and -100 when no run exists,
+not `NA`.
+
+### Back onto real ages
+
+t50 comes out on the dense interpolated index, which is awkward to plot
+against six sampling ages. `t50_to_compressed()` maps it onto the compressed
+axis of actually-sampled points:
+
+```{r}
+t50_to_compressed(t50, time_ref[, c("scott", "hatten")])
+```
+
+## Classifying genes
+
+With a t50 and a time of maximum per gene, `classify_timecourse_genes()` cuts
+genes into developmental windows on both axes, then overrides genes that do
+not change or are not expressed:
+
+```{r}
+gene_table <- data.frame(
+  row.names = c("early", "mid", "late", "flat", "silent"),
+  avg_max = c(1, 5, 30, 10, 1),
+  avg_t50 = c(2, 10, 25, 20, 2),
+  avg_fc  = c(3, 4, 5, 0.2, 3),
+  # "mid" is significant in scott only -- that is what pval_both decides on
+  hatten_trap_min_pval = c(1e-4, 0.50, 1e-4, 0.5, 1e-4),
+  scott_gnp_min_pval   = c(1e-4, 1e-4, 1e-4, 0.5, 1e-4),
+  max_expr_Scott  = c(500, 500, 500, 500, 2),
+  max_expr_Hatten = c(500, 500, 500, 500, 2)
+)
+
+classified <- classify_timecourse_genes(
+  gene_table,
+  fc_cutoff    = 2,
+  p_val_cutoff = 0.001,
+  expr_cutoffs = c(max_expr_Scott = 100, max_expr_Hatten = 100)
+)
+
+classified[, c("max_cat", "t50_cat", "max_t50_cat")]
+```
+
+Three things about the overrides are deliberate and worth knowing:
+
+**Order.** `"unexpressed"` is applied *after* `"unchanged"`, so a gene that is
+both comes back as unexpressed.
+
+**`"unexpressed"` needs every floor.** A gene must be below the expression
+cutoff in *all* data sets. One study detecting it is enough to keep it.
+
+**`pval_both` is the consequential switch.** `FALSE` (the default) means a
+gene need clear the p-value threshold in only one study; `TRUE` means both.
+Here `"mid"` clears the threshold in scott but not hatten, so it survives as
+a real gene under `FALSE` and is written off as `"unchanged"` under `TRUE`.
+The notebooks ran their cutoff sweeps with it set both ways:
+
+```{r}
+lenient <- classify_timecourse_genes(gene_table, 2, 0.001,
+                                     c(max_expr_Scott = 100,
+                                       max_expr_Hatten = 100),
+                                     pval_both = FALSE, table_only = TRUE)
+strict  <- classify_timecourse_genes(gene_table, 2, 0.001,
+                                     c(max_expr_Scott = 100,
+                                       max_expr_Hatten = 100),
+                                     pval_both = TRUE, table_only = TRUE)
+rbind(lenient = lenient, strict = strict)[, c("Max_P0_7 t50_Mid",
+                                              "unchanged", "unexpressed")]
+```
+
+`table_only = TRUE` returns counts rather than the data frame, and because
+the override levels are declared up front, every call returns the same 11
+named entries including the empty ones — so a sweep `rbind`s cleanly.
+
+## Binning along t50
+
+For enrichment *along* the differentiation axis rather than within
+categories, `t50window()` splits genes by group, orders each group by t50, and
+chops it into equal-sized windows named by their mean t50:
+
+```{r}
+t50_df <- data.frame(
+  gene  = paste0("g", 1:20),
+  t50   = seq(1, 40, length.out = 20),
+  group = rep("all", 20)
+)
+windows <- t50window(t50_df, window_number = 4)
+windows[[1]]
+```
+
+Each column is a window and its name is that window's mean t50, which feeds
+`topGO_timeseries()` directly. Note that `floor(n / window_number)` genes go
+in each window, so up to `window_number - 1` of the highest-t50 genes are
+dropped.
+
+## Plotting trajectories
+
+Given a gene-to-cluster mapping, three related functions draw mean
+trajectories per cluster:
+
+- `plot_cluster_line_EBseq()` — one panel per cluster, one line per study,
+  optional SD ribbon, plotted against sampled time points
+- `plot_cluster_line_interp()` — the same against the interpolated index, and
+  can annotate each panel with its cluster's mean t50
+- `plot_group_timeline()` — panels *ordered along* the time axis by each
+  cluster's median t50
+
+```{r, eval = FALSE}
+plot_group_timeline(interp_list, meta_list, gene2cluster,
+                    add_t50 = t50_table, time_ref = time_ref)
+```
+
+These three are ~260 lines each with pairwise diffs under 90 lines; they want
+to be one function with arguments, which is noted in `REVIEW.md`.
+`line_scatter_facet()` pairs each cluster's mean with a scatter of its
+individual genes.

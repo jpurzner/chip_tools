@@ -12,7 +12,7 @@ utils::globalVariables(c(
   "rowwise", "slice", "summarise", "ungroup",
 
   # plyr / reshape2
-  "ddply", "dcast", "melt", "mapvalues",
+  "ddply", "dcast", "melt", "mapvalues", "membership",
 
   # column names referenced inside dplyr and ggplot2 expressions
   "CrossingRank", "CrossingSmoothedValue", "Dataset", "GO.ID", "Ontology",

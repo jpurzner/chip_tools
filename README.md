@@ -2,13 +2,18 @@
 
 Analysis helpers accumulated across the GNP/MB cerebellar ChIP-seq and RNA-seq
 work. Previously a flat directory of 38 loose `.R` files meant to be `source()`d
-one at a time; now an installable R package of 62 documented functions.
+one at a time; now an installable R package of 79 documented functions.
+
+Start with `vignette("overview", package = "chiptools")` — it maps the seven
+stages of the GNP/MB analysis onto the functions that implement them, and
+shows how to migrate notebook code off the old `source()` calls.
 
 ```r
 # install.packages("remotes")
-remotes::install_github("jpurzner/chip_tools")
+remotes::install_github("jpurzner/chip_tools", build_vignettes = TRUE)
 library(chiptools)
 ?binarize_counts
+vignette("overview", package = "chiptools")
 ```
 
 Most functions take a **features × samples** data frame — genes, promoters or
@@ -98,11 +103,52 @@ starts, hold it out, cluster what's left.
 | `plot_anova_tukey()` | faceted plots with ANOVA/Tukey brackets |
 | `ggroc()` | ROC curves from pROC objects |
 
-### Clustering and graphs
+### Clustering and membership graphs
 
-`get_co_clusters()`, `graph_cluster_plot()`, `graph_cluster_plot_EBseq()`,
-`opti_map()`, `prune_close()`, `enhancer_quant()`, `df_rowfilt()`,
-`df_rowmatch()`, `min_finite()`, `summarySE()`.
+Fuzzy c-means membership across several data sets, turned into a graph that
+can be collapsed to a chosen number of clusters.
+
+| Function | Use |
+| --- | --- |
+| `multi_memb_prod()` | membership product across every cross-data-set cluster combination |
+| `memb2graph_edgeeat()` | build the directed co-cluster graph from those products |
+| `edgeeat()` | delete a vertex, transferring its gene membership to its neighbours |
+| `recursive_edgeeater()` | collapse the graph to a target vertex count |
+| `get_co_clusters()` | the hard-assignment equivalent |
+| `graph_cluster_plot()`, `graph_cluster_plot_EBseq()` | plot cluster trajectories from a graph |
+| `opti_map()` | greedily match two cluster labellings so colours agree |
+
+### Helpers lifted from the notebooks
+
+Repeated inline definitions from the `Ezh2_2022` notebooks, now with
+arguments in place of the globals they used to read.
+
+| Function | Use |
+| --- | --- |
+| `classify_timecourse_genes()` | cut genes into max/t50 windows, override unchanged and unexpressed |
+| `average_df()` | average columns within levels of a factor |
+| `call_mix_bin()` | `binarize_counts()` over a long-format `value` column |
+| `check_diff_genes()` | flag GO rows containing a gene of interest |
+| `compute_metagene()` | z-scored metagene score per sample |
+| `convert_mouse_gene_list()` | mouse to human orthologs via BioMart |
+| `percentile_ranks()` | percentile rank of each integer value |
+| `lookup_count()` | one cell of a per-condition count table |
+| `gg_color_hue()` | the default ggplot2 discrete palette |
+| `squish_trans()` | compress part of a continuous axis |
+
+### Other utilities
+
+`prune_close()`, `enhancer_quant()`, `df_rowfilt()`, `df_rowmatch()`,
+`min_finite()`, `summarySE()`, `plot_norm_heatmap()`, `go2sym()`,
+`go_cluster()`.
+
+## Vignettes
+
+| Vignette | Covers |
+| --- | --- |
+| `overview` | the seven pipeline stages, the parameter values the analysis settled on, and how to migrate notebook code |
+| `histone-segmentation` | the three-threshold segmentation, why the tail is excluded before fitting, and the clustering alternative |
+| `timecourse` | the time reference, interpolate/align/pool, t50, and gene classification |
 
 ## Typical session
 
@@ -166,8 +212,9 @@ hard-wired to mouse annotation (`org.Mm.eg.db`).
 
 ```r
 devtools::load_all()
-devtools::test()      # 69 assertions
+devtools::test()      # 139 assertions
 devtools::document()
+devtools::build_vignettes()
 devtools::check()
 ```
 
