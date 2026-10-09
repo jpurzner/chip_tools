@@ -1,0 +1,25 @@
+# R
+.Rhistory
+.Rapp.history
+.RData
+.Rproj.user/
+*.Rproj
+.Renviron
+
+# package build artefacts
+*.tar.gz
+..Rcheck/
+*.Rcheck/
+src/*.o
+src/*.so
+src/*.dll
+
+# macOS
+.DS_Store
+Icon?
+
+# editor backups - these are what littered the original directory
+*~
+\#*\#
+.\#*
+*.sw[po]
