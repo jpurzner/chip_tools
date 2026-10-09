@@ -1,0 +1,76 @@
+Package: chiptools
+Type: Package
+Title: Miscellaneous ChIP-seq and RNA-seq Processing Functions
+Version: 0.1.0
+Authors@R:
+    person("James", "Purzner", email = "jpurzner@gmail.com", role = c("aut", "cre"))
+Description: Analysis helpers accumulated across the GNP/MB cerebellar
+    ChIP-seq and RNA-seq work: mixture-model thresholding of binding signal,
+    upper-tail trimming and segmentation of histone-mark intensities,
+    differential-binding wrappers around DESeq2, count normalisation
+    (RPM/RPKM/TPM), time-course interpolation and half-max timing, GO
+    enrichment wrappers around topGO, and the t-SNE, cluster-line and
+    timeline figures built on top of them. Most functions take a features x
+    samples data frame and are meant to be composed at the console rather
+    than run as a pipeline.
+License: MIT + file LICENSE
+Encoding: UTF-8
+URL: https://github.com/jpurzner/chip_tools
+BugReports: https://github.com/jpurzner/chip_tools/issues
+Depends:
+    R (>= 4.1)
+Imports:
+    dplyr,
+    ggplot2,
+    graphics,
+    grDevices,
+    grid,
+    methods,
+    plyr,
+    RColorBrewer,
+    reshape2,
+    rlang,
+    stats,
+    tidyr,
+    utils,
+    zoo
+Suggests:
+    Biobase,
+    cluster,
+    contoureR,
+    cowplot,
+    DESeq2,
+    DescTools,
+    dbscan,
+    GO.db,
+    GOSemSim,
+    gplots,
+    ggExtra,
+    ggrepel,
+    gridExtra,
+    gtable,
+    igraph,
+    KernSmooth,
+    kknn,
+    mclust,
+    Mfuzz,
+    mixtools,
+    naturalsort,
+    org.Mm.eg.db,
+    parallel,
+    patchwork,
+    pheatmap,
+    prevR,
+    pROC,
+    raster,
+    reshape,
+    rgeos,
+    sf,
+    sp,
+    stringr,
+    SummarizedExperiment,
+    testthat (>= 3.0.0),
+    topGO
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
