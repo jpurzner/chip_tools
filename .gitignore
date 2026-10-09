@@ -23,3 +23,8 @@ Icon?
 \#*\#
 .\#*
 *.sw[po]
+
+# knitr figure output from knitting a vignette outside the build
+figure/
+*_cache/
+*_files/
