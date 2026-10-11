@@ -1,7 +1,7 @@
 Package: chiptools
 Type: Package
 Title: Miscellaneous ChIP-seq and RNA-seq Processing Functions
-Version: 0.2.0
+Version: 0.3.0
 Authors@R:
     person("James", "Purzner", email = "jpurzner@gmail.com", role = c("aut", "cre"))
 Description: Analysis helpers accumulated across the GNP/MB cerebellar
@@ -15,6 +15,8 @@ Description: Analysis helpers accumulated across the GNP/MB cerebellar
     than run as a pipeline.
 License: MIT + file LICENSE
 Encoding: UTF-8
+LazyData: true
+LazyDataCompression: xz
 URL: https://github.com/jpurzner/chip_tools
 BugReports: https://github.com/jpurzner/chip_tools/issues
 Depends:
@@ -48,6 +50,7 @@ Suggests:
     GOSemSim,
     gplots,
     ggExtra,
+    ggpubr,
     ggrepel,
     gridExtra,
     gtable,

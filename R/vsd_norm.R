@@ -36,7 +36,7 @@ vsd_norm  <- function(data, meta) {
   data <- data[c(1:(dim(data)[1]-5)),]
   #print(head(data))
   dds <- DESeq2::DESeqDataSetFromMatrix(countData = data, colData = meta, design = ~ condition)
-  dds <- dds[ apply(counts(dds), 1, max) > 25, ]
+  dds <- dds[ apply(DESeq2::counts(dds), 1, max) > 25, ]
   
   rld <- DESeq2::rlog(dds)
   vsd <- DESeq2::varianceStabilizingTransformation(dds)

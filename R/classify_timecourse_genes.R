@@ -40,6 +40,12 @@
 #'   added — or, with `table_only = TRUE`, a named integer vector of counts
 #'   per `max_t50_cat` level including the empty ones.
 #'
+#' @section Missing values:
+#' A gene with `NA` in any of the input columns gets `NA` for all three
+#' category columns -- it is not silently called `"unchanged"` or
+#' `"unexpressed"`. So `table()` on the result can cover fewer rows than `df`
+#' has; use `table(..., useNA = "ifany")` if you need to see them.
+#'
 #' @section Note:
 #' Factor levels for `"unchanged"` and `"unexpressed"` are added up front, so
 #' `table()` on the result reports zero-count categories rather than dropping

@@ -48,8 +48,8 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
 
   if (FC_size) {
   fc <- data.frame(genes = row.names(log2_norm_list[[1]]), 
-          ds1 = rowMax(log2_norm_list[[1]]) - rowMin(log2_norm_list[[1]]),
-          ds2 = rowMax(log2_norm_list[[2]]) - rowMin(log2_norm_list[[2]]))
+          ds1 = Biobase::rowMax(log2_norm_list[[1]]) - Biobase::rowMin(log2_norm_list[[1]]),
+          ds2 = Biobase::rowMax(log2_norm_list[[2]]) - Biobase::rowMin(log2_norm_list[[2]]))
   df <- merge(x = df, y =  fc, by.x = gene_col, by.y = 1, all = FALSE)
   print(head(df))
   
@@ -153,25 +153,25 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
   #all_axis <- names(sp$grobs)[grep("axis", names(sp$grobs))]
   #print(c(all_strips, all_axis))
   
-  gb <- gtable_filter(sp, "guide-box", trim = TRUE)
+  gb <- gtable::gtable_filter(sp, "guide-box", trim = TRUE)
   gb <- gb$grobs
-  gb <- gtable_remove_grobs(table = gb[[1]], name = "legend.box.background")
+  gb <- cowplot::gtable_remove_grobs(table = gb[[1]], name = "legend.box.background")
   gb1 <- gb[1,1]
-  gb1 <- gtable_filter(gb1, "guide", trim = TRUE)
+  gb1 <- gtable::gtable_filter(gb1, "guide", trim = TRUE)
   if (FC_size) {
     gb2 <- gb[1,3]
-    gb2 <- gtable_filter(gb2, "guide", trim = TRUE)
+    gb2 <- gtable::gtable_filter(gb2, "guide", trim = TRUE)
   }
   #gb1 <- gb1$grobs
   #gb2 <- gb2$grobs
   
   bg <- rectGrob(gp = gpar(alpha = 0))
   
-  sp2 <- gtable_filter(sp, "panel", trim = TRUE)
+  sp2 <- gtable::gtable_filter(sp, "panel", trim = TRUE)
   
   # need to change to generalize 
  
-  #sp2 <- gtable_filter(sp2, "gTree", trim = TRUE)
+  #sp2 <- gtable::gtable_filter(sp2, "gTree", trim = TRUE)
 
   sp2 <- sp2$grobs
   # removes the zeroGrob panels 
@@ -183,11 +183,11 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
   lp <- plot_cluster_line_EBseq(log2_norm_list, meta_list, gene2cluster, p_time = pseudo_time, ylimits = ylimits)
   #lp8 <- lp
   lp <- ggplotGrob(lp)
-  lp2 <- gtable_filter(lp, "panel", trim = TRUE)
+  lp2 <- gtable::gtable_filter(lp, "panel", trim = TRUE)
   lp2 <- lp2$grobs
   # removes the zeroGrob panels 
   lp2 <- lp2[which(lapply(lp2, length) == 5)]
-  yaxis <- gtable_filter(lp, "axis-l-1-1", trim = TRUE)
+  yaxis <- gtable::gtable_filter(lp, "axis-l-1-1", trim = TRUE)
   yaxis <- yaxis$grobs
 
   # determine dimensions of the plot matrix  
@@ -227,7 +227,7 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
 
   rect <- rectGrob(gp = gpar(col = "black", fill = "white"))
   
-  gt_mat <- gtable_matrix("demo", grobs = all_mat,  
+  gt_mat <- gtable::gtable_matrix("demo", grobs = all_mat,  
                           widths = unit(rep(2,ncols), "null"),
                           heights = unit(rep(c(1,2),nrows), "null"))
   
@@ -239,9 +239,9 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
         if ((!is.null(grouping)) & (n %in% grouping[,1] )) {
           curr_col <- grouping[which(grouping[,1] == n),3]
           col_rect <- rectGrob(gp = gpar(col = curr_col, fill = "white", lwd = 5))
-          gt_mat <- gtable_add_grob(gt_mat, col_rect, t =(j*2)-1, b = (j*2), l = i, z = -Inf)
+          gt_mat <- gtable::gtable_add_grob(gt_mat, col_rect, t =(j*2)-1, b = (j*2), l = i, z = -Inf)
         } else {
-          gt_mat <- gtable_add_grob(gt_mat, rect, t =(j*2)-1, b = (j*2), l = i, z = -Inf)
+          gt_mat <- gtable::gtable_add_grob(gt_mat, rect, t =(j*2)-1, b = (j*2), l = i, z = -Inf)
         }
         n = n + 1 
       } # end for 
@@ -249,10 +249,10 @@ line_scatter_facet <- function(df, log2_norm_list, meta_list, pseudo_time,
   } # end if 
   
   # add the y-axis for the expression plots 
-  gt_mat <- gtable_add_cols(gt_mat, widths = unit(0.2, "null"), pos = 0 )
-  gt_mat <- gtable_add_cols(gt_mat, widths = unit(0.2, "null"), pos = 0 )
+  gt_mat <- gtable::gtable_add_cols(gt_mat, widths = unit(0.2, "null"), pos = 0 )
+  gt_mat <- gtable::gtable_add_cols(gt_mat, widths = unit(0.2, "null"), pos = 0 )
   for (i in seq(1,dim(all_mat)[1], by = 2)) {
-    gt_mat <- gtable_add_grob(gt_mat, yaxis, t =i, b = i, l = 2, r= 2, z = Inf, clip = "off", name = "ylab-r")
+    gt_mat <- gtable::gtable_add_grob(gt_mat, yaxis, t =i, b = i, l = 2, r= 2, z = Inf, clip = "off", name = "ylab-r")
   }
   
   grid.newpage()

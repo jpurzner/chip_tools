@@ -103,8 +103,11 @@ enhancer_quant <- function(enhancer_list, promoter_df, dist_cutoff = 1e6, linear
     # map enhancer name back to quantification 
     pe_sum <- as.data.frame(pe_sum)
     enhancer <- as.data.frame(enhancer) 
-    pe_sum$quant <- suppressWarnings(plyr::mapvalues(pe_sum$enhancer, enhancer$name, enhancer$norm))
-    pe_sum$quant <- as.numeric(pe_sum$quant)
+    # plyr::mapvalues() emitted "The following `from` values were not present
+    # in `x`" for every sample, because pe_sum only holds pairs inside
+    # dist_cutoff while `enhancer$name` is the full peak list. A direct match
+    # is quieter and faster.
+    pe_sum$quant <- enhancer$norm[match(pe_sum$enhancer, enhancer$name)]
     pe_sum$promoter <- as.factor( pe_sum$promoter)
     # summarize by promoter name
     pe_prom <- pe_sum %>%  
@@ -117,37 +120,37 @@ enhancer_quant <- function(enhancer_list, promoter_df, dist_cutoff = 1e6, linear
   
   if (par) {
     # Calculate the number of cores
-    no_cores <- detectCores() - 1
+    no_cores <- parallel::detectCores() - 1
     # Initiate cluster
-    cl <- makeCluster(no_cores)
-    #clusterExport(cl, c("plyr", "dplyr", "base"))
-    clusterEvalQ(cl, {
+    cl <- parallel::makeCluster(no_cores)
+    #parallel::clusterExport(cl, c("plyr", "dplyr", "base"))
+    parallel::clusterEvalQ(cl, {
     })
-    enh_quant_list <- parLapply(cl,enhancer_list, function(x) enh_dist_quant(promoter_df, x, dist_cutoff))
-    stopCluster(cl)
+    enh_quant_list <- parallel::parLapply(cl,enhancer_list, function(x) enh_dist_quant(promoter_df, x, dist_cutoff))
+    parallel::stopCluster(cl)
   } else {  
     enh_quant_list <- lapply(enhancer_list, function(x) enh_dist_quant(promoter_df, x, dist_cutoff))
   } 
   
   
-  # make all dfs the same length and order 
-  
+  # Align every sample onto the full promoter list, zero-filling promoters
+  # with no enhancer in range, so all samples share one row order.
   enh_quant_list_same <- lapply(enh_quant_list, function(d) {
     d$promoter <- as.character(d$promoter)
-    df <- left_join( promoter_df[,c(1:4)], d, by = c("name" = "promoter") )
-    df <- df[,c("name","enhancer_quant")]
-    row.names(df) <- df$name
-    df$name <- NULL
-    df$enhancer_quant[is.na(df$enhancer_quant)] <- 0  
-    return(df)
+    df <- dplyr::left_join(promoter_df[, c(1:4)], d,
+                           by = c("name" = "promoter"))
+    out <- df$enhancer_quant
+    out[is.na(out)] <- 0
+    stats::setNames(out, df$name)
   })
-  
-  
-  names(enh_quant_list_same) <- names(enhancer_list)
-  #return(enh_quant_list_same)
-  enh_quant <- dplyr::bind_cols(enh_quant_list_same)
-  colnames(enh_quant) <- paste0(names(enhancer_list), "_enhancer") 
-  row.names(enh_quant) <- row.names(enh_quant_list_same[[1]])
-  
-  return(enh_quant)
+
+  # Build the matrix directly. The original bind_cols()ed a list of
+  # single-column frames that were all named `enhancer_quant`, which made
+  # dplyr emit a "New names:" message for every sample before the column
+  # names were overwritten on the next line.
+  enh_quant <- as.data.frame(enh_quant_list_same, stringsAsFactors = FALSE)
+  colnames(enh_quant) <- paste0(names(enhancer_list), "_enhancer")
+  rownames(enh_quant) <- names(enh_quant_list_same[[1]])
+
+  enh_quant
 }

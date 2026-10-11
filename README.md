@@ -2,7 +2,8 @@
 
 Analysis helpers accumulated across the GNP/MB cerebellar ChIP-seq and RNA-seq
 work. Previously a flat directory of 38 loose `.R` files meant to be `source()`d
-one at a time; now an installable R package of 79 documented functions.
+one at a time; now an installable R package of 79 documented functions and
+four example datasets.
 
 Start with `vignette("overview", package = "chiptools")` — it maps the seven
 stages of the GNP/MB analysis onto the functions that implement them, and
@@ -142,6 +143,23 @@ arguments in place of the globals they used to read.
 `min_finite()`, `summarySE()`, `plot_norm_heatmap()`, `go2sym()`,
 `go_cluster()`.
 
+## Example data
+
+Four subsets of the real analysis inputs ship with the package, so the
+examples and vignettes run on actual data:
+
+```r
+dim(gnp_histone_promoter)   # 3000 x 21  promoter ChIP/ATAC/RNA signal
+dim(gnp_timecourse)         # 3000 x 15  t50, fold change, p-values
+lengths(gnp_enhancers)      # five enhancer peak tables, chr19
+dim(gnp_promoters)          # 870 x 5    promoter TSS, chr19
+?`chiptools-data`
+```
+
+About 690 KB in total, from roughly 60 MB of source tables.
+`data-raw/make-datasets.R` in the repository shows exactly how each was
+derived, and why the sampling scheme differs between them.
+
 ## Vignettes
 
 | Vignette | Covers |
@@ -212,7 +230,7 @@ hard-wired to mouse annotation (`org.Mm.eg.db`).
 
 ```r
 devtools::load_all()
-devtools::test()      # 139 assertions
+devtools::test()      # 222 assertions
 devtools::document()
 devtools::build_vignettes()
 devtools::check()

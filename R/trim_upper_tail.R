@@ -141,7 +141,7 @@ create_combined_plots <- function(results_list, crossing_points_df, derivative_t
     theme_minimal() +
     theme(legend.position = "none")
   
-  combined_plot <- plot_smoothed / plot_deriv1 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+  combined_plot <- plot_smoothed / plot_deriv1 + patchwork::plot_layout(guides = "collect") & theme(legend.position = "bottom")
   
   return(combined_plot)
 }

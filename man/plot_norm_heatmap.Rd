@@ -19,7 +19,7 @@ the smallest finite non-zero value instead.}
 }
 \value{
 A genes x samples matrix of row-normalised \code{log2} values, ready to
-hand to \code{pheatmap()}.
+hand to \code{pheatmap::pheatmap()}.
 }
 \description{
 Divides each gene by its own row mean and takes \code{log2}, giving a

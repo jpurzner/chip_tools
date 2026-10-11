@@ -21,13 +21,13 @@
 #' @import ggplot2
 #' @export
 plot_cluster_line <- function (expr_list, ds_names, gene2cluster, p_time) {
-  require_pkg("Mfuzz", "ggrepel")
+  require_pkg("Mfuzz", "ggrepel", "Biobase")
 
   #require(naturalsort)
   
   # loop through the list of expression objects and extract data, merge with community clusters, 
   #  flatten the data and rbind into a common df for use with ggplot2
-  expr <- exprs(expr_list[[1]])
+  expr <- Biobase::exprs(expr_list[[1]])
   expr <- merge(x = gene2cluster, y = expr, by.x = 1, by.y = 0)
   expr <- melt(expr, id.vars = c("gene", "cluster_id"))
   colnames(expr)[3] <- "time"
@@ -36,7 +36,7 @@ plot_cluster_line <- function (expr_list, ds_names, gene2cluster, p_time) {
   expr <- expr[,c(1,2,3,5,4)]
   
   for (i in 2:length(expr_list)) {
-    expr_tmp <- exprs(expr_list[[i]])
+    expr_tmp <- Biobase::exprs(expr_list[[i]])
     expr_tmp <- merge(x = gene2cluster, y = expr_tmp, by.x = 1, by.y = 0)
     expr_tmp <- melt(expr_tmp, id.vars = c("gene","cluster_id"))
     colnames(expr_tmp)[3] <- "time"
@@ -95,7 +95,7 @@ plot_cluster_line <- function (expr_list, ds_names, gene2cluster, p_time) {
   p <- ggplot(mean_expr, aes(x=ptime, y=mean, colour = ds, group = ds)) + geom_line() + 
     geom_ribbon(aes(ymax = mean + sd, ymin = mean - sd, fill = ds), alpha = 0.3, colour=NA) + 
     facet_wrap(~ cluster_id) + geom_point() + 
-    geom_text_repel(aes(label=time), 
+    ggrepel::geom_text_repel(aes(label=time), 
                     nudge_y = ifelse(mean_expr$ds == ds_names[2], -0.5, ifelse(mean_expr$ds == ds_names[1], 0.5, 0.75)), 
                     size = 3, force =1 ) + 
     #scale_y_continuous(limits = c(-1, 1)) + 

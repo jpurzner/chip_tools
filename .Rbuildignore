@@ -5,3 +5,4 @@
 ^LICENSE\.md$
 ^\.DS_Store$
 ^.*\.Rhistory$
+^data-raw$

@@ -19,14 +19,16 @@
 #' @export
 graph_cluster_plot <- function (g, expr_list) {
   
+  require_pkg("igraph")
+
   # comm_obj: community from igraph 
   # g: graph object from igraph 
   # comm_n: number of communities (set to NULL to not cut)
   # co_id: either the results of get_co_clusters or a vector with co_clusters as value and genes as names
   # expr_list: list of expression objects  
   
-  v_genes <- V(g)$genes
-  v_names <-  V(g)$name
+  v_genes <- igraph::V(g)$genes
+  v_names <-  igraph::V(g)$name
   names(v_genes) <- v_names
   
   flat_v_names <- unlist(lapply(1:length(v_genes), 

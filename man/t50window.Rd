@@ -7,7 +7,7 @@
 t50window(df, overlap = 0, window_number = 10)
 }
 \arguments{
-\item{df}{Data frame with gene name in column 1, t50 in column 2 and the
+\item{df}{Data frame with gene name in column 1, t50 in column 2, and the
 grouping factor in column 3.}
 
 \item{overlap}{Extra rows added to each window, giving overlapping windows.}
@@ -30,6 +30,12 @@ straight to a per-window GO enrichment.
 \code{window_number - 1} of the highest-t50 genes are dropped. With
 \code{overlap > 0} the final window indexes past the end of the vector and those
 cells come back \code{NA}.
+
+Empty and undersized groups are dropped with a warning. An unused factor
+level previously produced a zero-row matrix and then failed several steps
+later with "length of dimnames 2 not equal to array extent" -- so
+passing a filtered column whose factor still carried its original levels
+was enough to break the call.
 }
 
 \examples{

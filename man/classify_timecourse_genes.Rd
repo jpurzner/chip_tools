@@ -75,6 +75,14 @@ unexpressed.
 Four copies of this lived in the \code{transcript_timecourse*.Rmd} notebooks,
 with the cut points and column names hard-coded. They are arguments here.
 }
+\section{Missing values}{
+
+A gene with \code{NA} in any of the input columns gets \code{NA} for all three
+category columns -- it is not silently called \code{"unchanged"} or
+\code{"unexpressed"}. So \code{table()} on the result can cover fewer rows than \code{df}
+has; use \code{table(..., useNA = "ifany")} if you need to see them.
+}
+
 \section{Note}{
 
 Factor levels for \code{"unchanged"} and \code{"unexpressed"} are added up front, so

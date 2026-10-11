@@ -26,8 +26,8 @@ graph_cluster_plot_EBseq <- function (g, expr_list, meta_list, p_time = NULL) {
   # co_id: either the results of get_co_clusters or a vector with co_clusters as value and genes as names
   # expr_list: list of expression objects  
   
-  v_genes <- V(g)$genes
-  v_names <-  V(g)$name
+  v_genes <- igraph::V(g)$genes
+  v_names <-  igraph::V(g)$name
   names(v_genes) <- v_names
   
   flat_v_names <- unlist(lapply(1:length(v_genes), 
