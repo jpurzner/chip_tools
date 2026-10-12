@@ -231,6 +231,13 @@ devtools::build_vignettes()
 devtools::check()
 ```
 
+`R CMD check` is expected to report **2 NOTEs**, both benign:
+
+- `Mfuzz`, a Bioconductor package, not installed on the check machine
+- `License stub is invalid DCF` — deliberate, see **License** below
+
+Anything beyond those two is a real finding.
+
 [`REVIEW.md`](REVIEW.md) catalogues the defects found when this was
 restructured from loose scripts, with file and line references into the
 pre-restructure history. Worth reading before changing any of the
@@ -240,3 +247,10 @@ mixture-model or segmentation code.
 
 MIT. `counts_to_tpm()`, `summarySE()` and `spline.poly()` are third-party; see
 their `@source` tags.
+
+`LICENSE` holds the full MIT text so GitHub detects it. That is a deliberate
+departure from R's convention, which wants the file to be valid DCF — just
+`YEAR` and `COPYRIGHT HOLDER` — and it is why `R CMD check` reports
+`License stub is invalid DCF`. The two requirements are mutually exclusive;
+a detectable licence was judged worth one cosmetic NOTE on a package that is
+not going to CRAN.
