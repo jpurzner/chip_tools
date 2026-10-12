@@ -1,3 +1,84 @@
+# chiptools 0.3.0
+
+Adds four example datasets, and fixes a dependency-resolution regression
+introduced in 0.1.0 that left 23 functions unable to run.
+
+## The regression (read this if you used 0.1.0 or 0.2.0)
+
+0.1.0 removed the in-function `require()` calls as part of making this a
+proper package. Those calls were what made bare verb names like `left_join()`
+and `melt()` resolve at run time. They were replaced with a
+`utils::globalVariables()` declaration, which silences `R CMD check` but
+**does not make a name callable**. The result: 23 of the 79 exported functions
+failed with `could not find function` on their first real call.
+
+It went undetected because the test suite exercised the mixture and utility
+functions, not these, and the vignette chunks that touch them were
+`eval = FALSE`. It surfaced the moment `enhancer_quant()` was run on real data.
+
+Fixed by importing the `Imports` packages wholesale in the package
+documentation, and giving every `Suggests` call an explicit `pkg::` prefix
+behind a `require_pkg()` guard. All 79 functions now have fully resolvable
+calls, asserted by a `codetools` audit over every export.
+
+Two things the fix turned up:
+
+- **`gtable_remove_grobs()` is in cowplot, not gtable.** Four functions were
+  calling it, and `gtable::gtable_remove_grobs` does not exist.
+- **`stat_pvalue_manual()` is from ggpubr**, which was not in `DESCRIPTION`
+  at all. `plot_anova_tukey()` could never have run.
+
+`str_c()` calls were replaced with base `paste0()`, dropping stringr.
+
+## Example datasets
+
+Four subsets of the real analysis inputs, ~690 KB in total, down from roughly
+60 MB of source tables. `data-raw/make-datasets.R` builds them and is not
+shipped.
+
+| Dataset | Contents |
+| --- | --- |
+| `gnp_histone_promoter` | 3,000 x 21 normalised ChIP/ATAC/RNA signal at GNP promoters |
+| `gnp_timecourse` | 3,000 x 15 per-transcript t50, time of maximum, fold change, p-values, expression maxima |
+| `gnp_enhancers` | five enhancer peak tables (172–1,150 peaks), chr19 |
+| `gnp_promoters` | 870 promoter TSS coordinates, chr19 |
+
+The sampling differs by dataset on purpose. The two matrices are random row
+samples, which preserves each column's distribution — all the mixture and
+rank-curve machinery needs. The two coordinate tables are restricted to one
+chromosome instead, because `enhancer_quant()` works per chromosome and
+weights by distance, so a random sample would destroy the spatial structure.
+
+The vignettes now run on these rather than on simulated frames. The
+segmentation vignette shows the real H3K4me3 distribution and measures how
+much the upper tail moves the threshold.
+
+## Bug fixes
+
+- **`t50window()` failed on an unused factor level.** A filtered grouping
+  column that still carried its original levels produced a zero-row group and
+  then died several steps later with `length of 'dimnames' [2] not equal to
+  array extent`. It now drops unused levels, warns about and skips groups
+  smaller than `window_number`, and errors clearly when nothing is left.
+- **`enhancer_quant()` printed a block of noise per sample.** It `bind_cols()`ed
+  single-column frames that were all named `enhancer_quant`, so dplyr renamed
+  them and said so, and it used `plyr::mapvalues()` where the lookup table was
+  deliberately larger than the keys. Both replaced with direct construction.
+
+## Documentation
+
+- `classify_timecourse_genes()` now documents that it propagates `NA` rather
+  than assigning a category, so `table()` on its output can cover fewer rows
+  than the input.
+- `gnp_timecourse` carries a warning about the two similarly named expression
+  column families in the source table: `max_expr_*` are TPM-like with a median
+  around 170, `max.val.*` are `time_of_change()` outputs on a 0–1.8 scale.
+  Pass the latter with a cutoff of 100 and every transcript comes back
+  `"unexpressed"`.
+
+222 testthat assertions, up from 139. `R CMD check` clean with one NOTE
+(four `Suggests` not installed on the check machine).
+
 # chiptools 0.2.0
 
 Brings in the code the `Ezh2_2022` analysis notebooks were carrying inline,

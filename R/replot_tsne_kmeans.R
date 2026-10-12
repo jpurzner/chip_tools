@@ -104,7 +104,7 @@ data_log_m$condition <- as.factor(data_log_m$condition)
 
 if (average_reps) {
   # average the replicates 
-  rep_mean <- plyr::ddply(data_log_m, .(gene, condition), summarise, mean_val = mean(value))
+  rep_mean <- plyr::ddply(data_log_m, plyr::.(gene, condition), summarise, mean_val = mean(value))
   rep_mean <- dcast(rep_mean, gene ~ condition, value.var = "mean_val")
   row.names(rep_mean) <- rep_mean$gene
   rep_mean$gene <- NULL
@@ -123,7 +123,7 @@ if (average_reps) {
 
 
 # take mean of each metric by data_k and condition 
-data_log_m <- plyr::ddply(data_log_m, .(data_k, condition), summarise, mean_val = mean(value))
+data_log_m <- plyr::ddply(data_log_m, plyr::.(data_k, condition), summarise, mean_val = mean(value))
 #normalize matrix by column
 data_log_m <- dcast(data_log_m, data_k ~ condition, value.var = "mean_val")
 
@@ -208,7 +208,7 @@ if (!is.null(mask_low )) {
   
   mask_low <- mask_low[match(row.names(data_log) , row.names(mask_low)),]
   data_log[,c(1:(ncol(data_log)-1))] <- as.matrix( mask_low[, colnames(data_log[1:(ncol(data_log)-1)])]) *  as.matrix(data_log[,c(1:(ncol(data_log)-1))])
-  color_vals[1] <- col2hex("grey")
+  color_vals[1] <- gplots::col2hex("grey")
 }
 
 
@@ -218,7 +218,7 @@ if (!is.null(label_cols )) {
   heat_anno <- merge(x = heat_anno,  y = label_anno_df, by.x = 0, by.y = 0, all  = FALSE)
   row.names(heat_anno) <- heat_anno$Row.names
   heat_anno$Row.names <- NULL
-  tf_col <- as.factor(col2hex(c("white","black")))
+  tf_col <- as.factor(gplots::col2hex(c("white","black")))
   names(tf_col) <- c(0, 1)
   tf_col_l <- list(tf_col, tf_col)
   names(tf_col_l) <- label_factors
@@ -234,7 +234,7 @@ if (!is.null(gene_labels )) {
   labels_row_df <- labels_row_df[labels_row_df[,2] != "",]  
   
   labels_row_p <- ggplot(labels_row_df, aes(x = 1, y = position, label = gene)) + 
-    geom_text_repel(nudge_x = 0.1,
+    ggrepel::geom_text_repel(nudge_x = 0.1,
                     nudge_y = 10,
                     direction = "y") + 
   scale_y_reverse( limits=c((dim(data_log)[1]),0), expand = c(0,0)) +
@@ -252,7 +252,7 @@ if (split_horizontal_label) {
 
 if (plot_what == "heatmap") {
   if (is.null(meta)) {
-    h1 <- pheatmap(as.matrix(data_log[c(1:(dim(data_log)[2]-1))]), 
+    h1 <- pheatmap::pheatmap(as.matrix(data_log[c(1:(dim(data_log)[2]-1))]), 
                  cluster_rows=FALSE,cluster_cols=FALSE, 
                  #show_rownames = FALSE, 
                  labels_row = labels_row,
@@ -269,7 +269,7 @@ if (plot_what == "heatmap") {
                  gaps_col = col_gaps,
                  silent = TRUE)  
   } else {
-    h1 <- pheatmap(as.matrix(data_log[c(1:(ncol(data_log)-2))]), 
+    h1 <- pheatmap::pheatmap(as.matrix(data_log[c(1:(ncol(data_log)-2))]), 
                  cluster_rows=FALSE,cluster_cols=FALSE, 
                  show_rownames = FALSE,
                  #show_colnames = FALSE,
@@ -284,18 +284,18 @@ if (plot_what == "heatmap") {
   }
   h2 <- h1$gtable
   # this needs to be adjust the following grob indexes 
-  h2 <- gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names", "row_names"))
+  h2 <- cowplot::gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names", "row_names"))
   if (!is.null(label_cols )) {
     labels_row_g <- ggplotGrob(labels_row_p)
-    labels_row_g <- gtable_filter(labels_row_g,"panel")
-    h2 <- gtable_add_cols(h2, h2$widths[1], pos = -1)
-    h2 <- gtable_add_cols(h2, h2$widths[1] *6 , pos = -1)
-    h2 <- gtable_add_grob(h2,h2$grobs[[3]] , t = 1, b = 1, l = 3, r = 3, name = "gene_clusters")
-    h2 <- gtable_add_grob(h2, labels_row_g$grobs[[1]], t = 1, b = 1, l = 4, r = 4, name = "gene_names")
-    h2 <- gtable_remove_grobs(h2, names = c( "row_annotation"))
-    h2 <- gtable_add_cols(h2, h2$widths[2], pos = 0)
+    labels_row_g <- gtable::gtable_filter(labels_row_g,"panel")
+    h2 <- gtable::gtable_add_cols(h2, h2$widths[1], pos = -1)
+    h2 <- gtable::gtable_add_cols(h2, h2$widths[1] *6 , pos = -1)
+    h2 <- gtable::gtable_add_grob(h2,h2$grobs[[3]] , t = 1, b = 1, l = 3, r = 3, name = "gene_clusters")
+    h2 <- gtable::gtable_add_grob(h2, labels_row_g$grobs[[1]], t = 1, b = 1, l = 4, r = 4, name = "gene_names")
+    h2 <- cowplot::gtable_remove_grobs(h2, names = c( "row_annotation"))
+    h2 <- gtable::gtable_add_cols(h2, h2$widths[2], pos = 0)
     bg <- rectGrob(gp = gpar(alpha = 0))
-    h2 <- gtable_add_grob(h2, bg, t = 1, b = 1, l = 1, r = 1, name = "fill")
+    h2 <- gtable::gtable_add_grob(h2, bg, t = 1, b = 1, l = 1, r = 1, name = "fill")
   }  
   
   grid.newpage()
@@ -326,7 +326,7 @@ g1 <- ggplot(tsne_res, aes(x, y, colour = data_k)) +
 if (!is.null(gene_labels)) {
   label_only <- tsne_res[row.names(tsne_res) %in% gene_labels,]
   label_only$name <- row.names(label_only)
-  g1 <- g1 + geom_text_repel(data = label_only, aes(x=x, y=y, label = name), 
+  g1 <- g1 + ggrepel::geom_text_repel(data = label_only, aes(x=x, y=y, label = name), 
                              point.padding = unit(1, 'lines'), 
                              colour = "black") 
 }

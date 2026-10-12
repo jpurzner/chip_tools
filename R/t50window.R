@@ -5,7 +5,7 @@
 #' window becomes a column named after its mean t50, so the result can be fed
 #' straight to a per-window GO enrichment.
 #'
-#' @param df Data frame with gene name in column 1, t50 in column 2 and the
+#' @param df Data frame with gene name in column 1, t50 in column 2, and the
 #'   grouping factor in column 3.
 #' @param overlap Extra rows added to each window, giving overlapping windows.
 #' @param window_number Number of windows per group.
@@ -19,6 +19,12 @@
 #' `overlap > 0` the final window indexes past the end of the vector and those
 #' cells come back `NA`.
 #'
+#' Empty and undersized groups are dropped with a warning. An unused factor
+#' level previously produced a zero-row matrix and then failed several steps
+#' later with "length of dimnames 2 not equal to array extent" -- so
+#' passing a filtered column whose factor still carried its original levels
+#' was enough to break the call.
+#'
 #' @seealso [expr_half_max()] to compute t50, [topGO_timeseries()]
 #'
 #' @examples
@@ -26,38 +32,54 @@
 #' windows <- t50window(t50_table, window_number = 10)
 #' }
 #' @export
-t50window <-  function(df, overlap = 0, window_number= 10) {
+t50window <- function(df, overlap = 0, window_number = 10) {
 
-  # split list of data-frame by groups 
-  max_list <- split( df , f = df[,3] )
-  # order the data frames by t50 
-  max_list <- lapply(max_list, function(x) x[order(x[,2]),] )
+  stopifnot(ncol(df) >= 3, window_number >= 1)
 
-  
-  # since uniform size can store gene names as a data-frame with window_size rows and window_number columns
-  vect2mat <- function(v, overlap = 0 , window_number = 10 ) {
-    r <- floor(length(v)/window_number)
-    r <- r + overlap
-    m <- matrix(0, r, window_number)
-    for (i in c(1:window_number)) {
-      begin <- (r*(i-1)+1)
-      stop <- (r*(i))
-      m[,i] <- as.character(v[c(begin:stop)])  
-    } # end of for loop
-  return(m)  
-  } # end of vect2mat
-  
-  gene_list <- lapply(max_list, function(x) vect2mat(x[,1], overlap = overlap, window_number = window_number ))
-  t50_list <- lapply(max_list, function(x) vect2mat(x[,2], overlap = overlap, window_number = window_number ))
-  t50_list <- lapply(t50_list, function(y) data.frame(apply(y, 2, function(x) as.numeric(as.character(x)))))
-  t50_summary <-  lapply(t50_list, function(x) as.vector(colMeans(x)))
-  gene_list <- lapply(c(1:length(gene_list)), function(n) {
-    df = gene_list[[n]]
-    colnames(df) <- t50_summary[[n]]
-    return(df)
-    })
-  
-  return(gene_list)
-    
-  
+  # droplevels() first: an unused factor level otherwise becomes a zero-row
+  # group that fails downstream rather than here.
+  group <- droplevels(as.factor(df[[3]]))
+  max_list <- split(df, f = group)
+  max_list <- lapply(max_list, function(x) x[order(x[[2]]), ])
+
+  # A group needs at least one row per window to be binned at all.
+  too_small <- vapply(max_list, nrow, integer(1)) < window_number
+  if (any(too_small)) {
+    warning("dropping group(s) with fewer than ", window_number, " rows: ",
+            paste(names(max_list)[too_small], collapse = ", "), call. = FALSE)
+    max_list <- max_list[!too_small]
+  }
+  if (length(max_list) == 0L) {
+    stop("no group has at least ", window_number, " rows", call. = FALSE)
+  }
+
+  # Uniform window size, so gene names fit a (rows x window_number) matrix.
+  vect2mat <- function(v, overlap = 0, window_number = 10) {
+    r <- floor(length(v) / window_number) + overlap
+    m <- matrix(NA_character_, r, window_number)
+    for (i in seq_len(window_number)) {
+      idx <- seq.int(r * (i - 1) + 1, length.out = r)
+      idx[idx > length(v)] <- NA_integer_
+      m[, i] <- as.character(v[idx])
+    }
+    m
+  }
+
+  gene_list <- lapply(max_list, function(x)
+    vect2mat(x[[1]], overlap = overlap, window_number = window_number))
+  t50_list <- lapply(max_list, function(x)
+    vect2mat(x[[2]], overlap = overlap, window_number = window_number))
+
+  t50_summary <- lapply(t50_list, function(y) {
+    nums <- matrix(as.numeric(y), nrow = nrow(y))
+    colMeans(nums, na.rm = TRUE)
+  })
+
+  out <- lapply(seq_along(gene_list), function(n) {
+    m <- gene_list[[n]]
+    colnames(m) <- t50_summary[[n]]
+    m
+  })
+  names(out) <- names(gene_list)
+  out
 }

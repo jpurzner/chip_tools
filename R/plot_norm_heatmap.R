@@ -17,7 +17,7 @@
 #' @param verbose If `TRUE` print the clamp value. The original always printed.
 #'
 #' @return A genes x samples matrix of row-normalised `log2` values, ready to
-#'   hand to `pheatmap()`.
+#'   hand to `pheatmap::pheatmap()`.
 #'
 #' @section Fixes:
 #' `max(norm_log2)` was taken over a matrix that still held `-Inf`, and the

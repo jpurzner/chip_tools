@@ -50,6 +50,8 @@ topGO_wrap <- function(data, set1, name,
 
   # Verify that the 'name' column exists in 'data'
   if (!name %in% colnames(data)) {
+  require_pkg("AnnotationDbi")
+
     stop("the 'name' column ", sQuote(name), " does not exist in 'data'",
          call. = FALSE)
   }
@@ -102,17 +104,17 @@ topGO_wrap <- function(data, set1, name,
     GOdata <- new("topGOdata", ontology = ontology,
                   allGenes = geneList,
                   description = "test",
-                  annot = annFUN.org,
+                  annot = topGO::annFUN.org,
                   mapping = "org.Mm.eg.db",
                   ID = "Symbol")
-    resultClassic <- runTest(GOdata, algorithm = "classic", statistic = "fisher")
-    resultElim <- runTest(GOdata, algorithm = "elim", statistic = "fisher")
-    resultTopgo <- runTest(GOdata, algorithm = "weight01", statistic = "fisher")
-    allRes <- GenTable(GOdata, classicFisher = resultClassic, elimFisher = resultElim,
+    resultClassic <- topGO::runTest(GOdata, algorithm = "classic", statistic = "fisher")
+    resultElim <- topGO::runTest(GOdata, algorithm = "elim", statistic = "fisher")
+    resultTopgo <- topGO::runTest(GOdata, algorithm = "weight01", statistic = "fisher")
+    allRes <- topGO::GenTable(GOdata, classicFisher = resultClassic, elimFisher = resultElim,
                        topgoFisher = resultTopgo, orderBy = "elimFisher",
                        ranksOf = "elimFisher", topNodes = topNodes)
     allRes$genes <- sapply(allRes$GO.ID, function(go_term) {
-      genes_in_term <- genesInTerm(GOdata, go_term)[[1]]
+      genes_in_term <- topGO::genesInTerm(GOdata, go_term)[[1]]
       test_genes <- genes_in_term[genes_in_term %in% group]
       paste(test_genes, collapse = ", ")
     })
@@ -141,11 +143,11 @@ topGO_wrap <- function(data, set1, name,
   if (order_by_similarity) {
     go_terms <- as.character(go_fdf$GO.ID)
     valid_go_terms <- go_terms[sapply(go_terms, function(go) {
-      go_info <- GOTERM[[go]]
-      !is.null(go_info) && Ontology(go_info) == ontology
+      go_info <- GO.db::GOTERM[[go]]
+      !is.null(go_info) && AnnotationDbi::Ontology(go_info) == ontology
     })]
-    sem_data <- godata("org.Mm.eg.db", ont = ontology, keytype = "GO", annoDb = "org.Mm.eg.db")
-    sim_matrix <- mgeneSim(valid_go_terms, semData = sem_data, measure = "Wang")
+    sem_data <- GOSemSim::godata("org.Mm.eg.db", ont = ontology, keytype = "GO", annoDb = "org.Mm.eg.db")
+    sim_matrix <- GOSemSim::mgeneSim(valid_go_terms, semData = sem_data, measure = "Wang")
     dissimilarity <- as.dist(1 - sim_matrix)
     hc <- hclust(dissimilarity, method = "average")
     ordered_go_terms <- valid_go_terms[hc$order]

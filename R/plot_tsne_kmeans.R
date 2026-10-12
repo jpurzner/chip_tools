@@ -83,10 +83,10 @@ if (tsne_cluster_mode == "kmeans") {
   tsne_km <- kmeans(tsne_res, k, iter.max = 4000, nstart = 50) 
   tsne_res$tsne_k <- as.factor(tsne_km$cluster)
 } else if (tsne_cluster_mode == "spectral") {
-  tsne_km <- specClust(tsne_res, centers=k, nn = 50)
+  tsne_km <- kknn::specClust(tsne_res, centers=k, nn = 50)
   tsne_res$tsne_k <- as.factor(tsne_km$cluster)
 } else if (tsne_cluster_mode == "mclust") {
-  tsne_mod <- densityMclust(tsne_res)
+  tsne_mod <- mclust::densityMclust(tsne_res)
   tsne_res$tsne_k <- as.factor(tsne_mod$classification)
   
   
@@ -124,7 +124,7 @@ data_log_m$condition <- mapvalues(data_log_m$variable,
                                   to = as.character(meta[,1]))
 data_log_m$condition <- as.factor(data_log_m$condition)
 # take mean of each metric by data_k and condition 
-data_log_m <- plyr::ddply(data_log_m, .(data_k, condition), summarise, mean_val = mean(value))
+data_log_m <- plyr::ddply(data_log_m, plyr::.(data_k, condition), summarise, mean_val = mean(value))
 #normalize matrix by column
 data_log_m <- dcast(data_log_m, data_k ~ condition, value.var = "mean_val")
 
@@ -211,7 +211,7 @@ ann_colors = list(
 
 
 if (is.null(meta)) {
-  h1 <- pheatmap(as.matrix(data_log[c(1:(dim(data_log)[2]-2))]), 
+  h1 <- pheatmap::pheatmap(as.matrix(data_log[c(1:(dim(data_log)[2]-2))]), 
                  cluster_rows=FALSE,cluster_cols=FALSE, 
                  show_rownames = FALSE, 
                  color =  color_vals,
@@ -221,7 +221,7 @@ if (is.null(meta)) {
                  fontsize_row = 12,
                  silent = TRUE)  
 } else {
-  h1 <- pheatmap(as.matrix(data_log[c(1:(ncol(data_log)-2))]), 
+  h1 <- pheatmap::pheatmap(as.matrix(data_log[c(1:(ncol(data_log)-2))]), 
                  cluster_rows=FALSE,cluster_cols=FALSE, 
                  show_rownames = FALSE,
                  #show_colnames = FALSE,
@@ -274,7 +274,7 @@ g2 <- ggplot(tsne_res, aes(x, y, colour = tsne_k)) +
 if (!is.null(labels)) {
   label_only <- tsne_res[row.names(tsne_res) %in% labels,]
   label_only$name <- row.names(label_only)
-  g1 <- g1 + geom_text_repel(data = label_only, aes(x=x, y=y, label = name), 
+  g1 <- g1 + ggrepel::geom_text_repel(data = label_only, aes(x=x, y=y, label = name), 
                              point.padding = unit(1, 'lines'), 
                              colour = "black") 
 }
@@ -284,22 +284,22 @@ g1 <- ggplotGrob(g1)
 g2 <- ggplotGrob(g2)
 
 # move the legend to the empty space between the two 
-legend1 <- gtable_filter(g1,"guide-box")
-#sp <- gtable_filter(g1, "spacer")
-g1 <- gtable_filter(g1,"panel")
-#g1 <- gtable_remove_grobs(g1, names = c("guide-box", "ylab", "xlab"), trim = TRUE)
+legend1 <- gtable::gtable_filter(g1,"guide-box")
+#sp <- gtable::gtable_filter(g1, "spacer")
+g1 <- gtable::gtable_filter(g1,"panel")
+#g1 <- cowplot::gtable_remove_grobs(g1, names = c("guide-box", "ylab", "xlab"), trim = TRUE)
 
 
-legend2 <- gtable_filter(g2,"guide-box")
-#sp <- gtable_filter(g1, "spacer")
-g2 <- gtable_filter(g2,"panel")
+legend2 <- gtable::gtable_filter(g2,"guide-box")
+#sp <- gtable::gtable_filter(g1, "spacer")
+g2 <- gtable::gtable_filter(g2,"panel")
 #return(g1)
 
 data_log <- data_log[order(data_log$tsne_k),]
 heat_anno <- as.data.frame(data_log[,c((dim(data_log)[2]-1):(dim(data_log)[2]))])
 
 if (is.null(meta)) {
-  h2 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+  h2 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
                cluster_rows=FALSE,cluster_cols=TRUE, 
                show_rownames = FALSE,
                color =  color_vals,
@@ -309,7 +309,7 @@ if (is.null(meta)) {
                fontsize_row = 12,
                silent = TRUE)
 } else {
-  h2 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+  h2 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
     cluster_rows=FALSE,cluster_cols=FALSE, 
     show_rownames = FALSE,
     color =  color_vals,
@@ -327,15 +327,15 @@ h1 <- h1$gtable
 h2 <- h2$gtable
 
 # this needs to be adjust the following grob indexes 
-h1 <- gtable_remove_grobs(h1, names = c( "annotation_legend", "legend", "col_annotation_names"))
-h2 <- gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names"))
+h1 <- cowplot::gtable_remove_grobs(h1, names = c( "annotation_legend", "legend", "col_annotation_names"))
+h2 <- cowplot::gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names"))
 
 #print(h2)
 
 bg <- rectGrob(gp = gpar(alpha = 0))
 
 g_mat <- matrix(list(g1,legend1,g2,legend2,h1,bg,h2,bg), ncol = 2)
-gt_mat <- gtable_matrix("demo", grobs = g_mat,  
+gt_mat <- gtable::gtable_matrix("demo", grobs = g_mat,  
                         widths = unit(c(2,2), "null"),
                         heights = unit(c(1,0.2,1,0.2), "null"))
 grid.newpage()

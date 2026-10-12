@@ -30,14 +30,17 @@ So the segmentation is three thresholds, found in two steps.
 
 ```{r, eval = FALSE}
 # 1. where does the upper tail start?
-cutoffs <- trim_upper_tail(histone_rlog_prune, derivative_threshold = 4e-4)
+cutoffs <- trim_upper_tail(gnp_histone_promoter, derivative_threshold = 4e-4)
 
 # 2. mixture threshold per sample, fitted with the tail excluded
-breaks <- chip_binarize_tail_removed(histone_rlog_prune, cutoffs)
+breaks <- chip_binarize_tail_removed(gnp_histone_promoter, cutoffs)
 
 # 3. call every gene, then collapse replicates within condition
 calls <- chip_categorize_and_collapse(signal_with_gene_id, breaks)
 ```
+
+`gnp_histone_promoter` is a 3,000-promoter sample of the real matrix, shipped
+with the package — so everything below runs as written.
 
 ## Step 1: find the tail
 
@@ -46,17 +49,19 @@ curve, differentiates it, and takes the knee — the rank at which the smoothed
 first derivative falls below `derivative_threshold`. Below that rank, signal
 climbs steeply with rank; above it, you are in the tail.
 
-```{r}
-set.seed(1)
-# background, real signal, and a small extreme tail
-signal <- c(stats::rnorm(1500, 0.25, 0.06),
-            stats::rnorm(900,  0.62, 0.09),
-            stats::rnorm(120,  0.95, 0.03))
-dat <- data.frame(sample_a = signal)
+```{r, fig.width = 6, fig.height = 4}
+# real signal: 3,000 promoters x 21 assays, already 0-1 normalised
+dim(gnp_histone_promoter)
 
-hist(dat$sample_a, breaks = 80, col = "grey", border = "white",
-     main = "Two components plus a tail", xlab = "normalised signal")
+signal <- gnp_histone_promoter$GNP_H3K4me3_rep1
+
+hist(signal, breaks = 60, col = "grey", border = "white",
+     main = "H3K4me3 at GNP promoters", xlab = "normalised signal")
 ```
+
+Two humps and a shoulder on the right. That shoulder is the problem: a single
+threshold has to go somewhere between the humps, and where exactly depends on
+whether the shoulder is included when you fit.
 
 The threshold is **on the scale of the smoothed derivative**, which depends on
 how many rows you have. It does not transfer between data sets. The notebooks
@@ -66,15 +71,13 @@ were chosen by looking at the lower panel of the diagnostic plot
 
 ```{r, eval = FALSE}
 # print the diagnostics, decide, then re-run
-cutoffs <- trim_upper_tail(histone_rlog_prune, derivative_threshold = 4e-4,
+cutoffs <- trim_upper_tail(gnp_histone_promoter,
+                           derivative_threshold = 4e-4,
                            generate_plots = TRUE)
-cutoffs
-#>          Column CrossingRank CrossingSmoothedValue
-#> 1      sample_a         2402             0.8161...
 ```
 
 Samples where no crossing is found are dropped from the table, so check
-`nrow(cutoffs)` against `ncol(histone_rlog_prune)`.
+`nrow(cutoffs)` against `ncol(gnp_histone_promoter)`.
 
 ## Step 2: the bound/unbound threshold
 
@@ -85,9 +88,16 @@ for the point where the posterior probability of belonging to the background
 component equals 0.5:
 
 ```{r}
+cutoffs <- trim_upper_tail(data.frame(H3K4me3 = signal),
+                           derivative_threshold = 4e-4,
+                           generate_plots = FALSE)
+cutoffs
+
+tail_cutoff <- cutoffs$CrossingSmoothedValue[1]
+
 if (requireNamespace("mixtools", quietly = TRUE)) {
-  below_tail <- signal[signal < 0.88]
-  fit <- binarize_counts(below_tail, plot = FALSE, return_what = "summary")
+  fit <- binarize_counts(signal[signal < tail_cutoff],
+                         plot = FALSE, return_what = "summary")
   round(fit, 4)
 }
 ```
@@ -102,13 +112,13 @@ Fitting below the tail matters. Here is the same fit with the tail left in:
 ```{r}
 if (requireNamespace("mixtools", quietly = TRUE)) {
   with_tail <- binarize_counts(signal, plot = FALSE, return_what = "summary")
-  without   <- binarize_counts(signal[signal < 0.88], plot = FALSE,
+  without   <- binarize_counts(signal[signal < tail_cutoff], plot = FALSE,
                                return_what = "summary")
-  data.frame(
+  round(data.frame(
     row.names  = c("tail included", "tail excluded"),
     cutoff_50  = c(with_tail[["cutoff_50"]],  without[["cutoff_50"]]),
     mean_upper = c(with_tail[["mean_upper"]], without[["mean_upper"]])
-  )
+  ), 4)
 }
 ```
 
@@ -151,14 +161,14 @@ Gaussian mixtures per sample over a range of component counts, picks one by
 ICL, and gives the held-out tail its own top class:
 
 ```{r, eval = FALSE}
-classes <- chip_mclust_icl_all(histone_rlog_prune, cutoffs, G_range = 2:8)
+classes <- chip_mclust_icl_all(gnp_histone_promoter, cutoffs, G_range = 2:8)
 ```
 
 `chip_segment()` is `trim_upper_tail()` then `chip_mclust_icl_all()` in one
 call:
 
 ```{r, eval = FALSE}
-seg <- chip_segment(histone_rlog_prune, deriv_cutoff = 4e-4)
+seg <- chip_segment(gnp_histone_promoter, deriv_cutoff = 4e-4)
 seg$cutoffs
 head(seg$classes)
 ```
@@ -174,6 +184,8 @@ Both routes assume the samples are on a comparable scale.
 each end — not a quantile — then rescales to 0–1:
 
 ```{r, eval = FALSE}
+# gnp_histone_promoter is already normalised; this is the step that
+# produced it, shown on a raw rlog matrix
 histone_norm <- wins_norm_histones(histone_rlog_bm, low = 500, high = 20)
 ```
 

@@ -85,16 +85,16 @@ topGO_split <- function(t50_df, all_genes, split_cat,  ont = "BP",  test = FALSE
     GOdata <- new("topGOdata",ontology = ont,
                   allGenes = geneList,
                   description ="test",
-                  annot=annFUN.org, 
+                  annot=topGO::annFUN.org, 
                   mapping="org.Mm.eg.db", 
                   ID="Symbol")
     
     # run the Fisher's exact tests
-    resultClassic <- runTest(GOdata, algorithm="classic", statistic="fisher")
-    resultElim <- runTest(GOdata, algorithm="elim", statistic="fisher")
-    resultTopgo <- runTest(GOdata, algorithm="weight01", statistic="fisher")
+    resultClassic <- topGO::runTest(GOdata, algorithm="classic", statistic="fisher")
+    resultElim <- topGO::runTest(GOdata, algorithm="elim", statistic="fisher")
+    resultTopgo <- topGO::runTest(GOdata, algorithm="weight01", statistic="fisher")
     
-    allRes <- GenTable(GOdata, 
+    allRes <- topGO::GenTable(GOdata, 
                        classicFisher = resultClassic, 
                        elimFisher = resultElim, 
                        topgoFisher = resultTopgo, 
@@ -107,7 +107,7 @@ topGO_split <- function(t50_df, all_genes, split_cat,  ont = "BP",  test = FALSE
   
 
   # load variables to cluster 
-  clusterExport(cl, varlist = c("gene_list", "universe", "ont", "gostarter"), envir=environment())
+  parallel::clusterExport(cl, varlist = c("gene_list", "universe", "ont", "gostarter"), envir=environment())
   
   if (test == T) {
     all_go <- parallel::parLapply(cl ,gene_list[1:2], function(x) gostarter(x, universe, ont = ont))

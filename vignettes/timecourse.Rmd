@@ -156,27 +156,37 @@ With a t50 and a time of maximum per gene, `classify_timecourse_genes()` cuts
 genes into developmental windows on both axes, then overrides genes that do
 not change or are not expressed:
 
-```{r}
-gene_table <- data.frame(
-  row.names = c("early", "mid", "late", "flat", "silent"),
-  avg_max = c(1, 5, 30, 10, 1),
-  avg_t50 = c(2, 10, 25, 20, 2),
-  avg_fc  = c(3, 4, 5, 0.2, 3),
-  # "mid" is significant in scott only -- that is what pval_both decides on
-  hatten_trap_min_pval = c(1e-4, 0.50, 1e-4, 0.5, 1e-4),
-  scott_gnp_min_pval   = c(1e-4, 1e-4, 1e-4, 0.5, 1e-4),
-  max_expr_Scott  = c(500, 500, 500, 500, 2),
-  max_expr_Hatten = c(500, 500, 500, 500, 2)
-)
+`gnp_timecourse` is a 3,000-transcript sample of the real table, shipped with
+the package:
 
+```{r}
+str(gnp_timecourse, max.level = 1, give.attr = FALSE)
+```
+
+The expression floors are `max_expr_Scott` / `max_expr_Hatten`, on a TPM-like
+scale with a median around 170. The source table also has `max.val.Scott` /
+`max.val.Hatten`, which are `time_of_change()` outputs on a 0–1.8 normalised
+scale — pass *those* with a cutoff of 100 and every transcript comes back
+`"unexpressed"`. That is why `expr_cutoffs` is a named vector rather than two
+positional arguments.
+
+```{r}
 classified <- classify_timecourse_genes(
-  gene_table,
+  gnp_timecourse,
   fc_cutoff    = 2,
   p_val_cutoff = 0.001,
   expr_cutoffs = c(max_expr_Scott = 100, max_expr_Hatten = 100)
 )
 
-classified[, c("max_cat", "t50_cat", "max_t50_cat")]
+table(classified$max_cat)
+table(classified$t50_cat)
+```
+
+Cross-tabulating the two axes is the view the analysis works from — when a
+gene peaks against when it turns on:
+
+```{r}
+with(classified, table(max_cat, t50_cat))
 ```
 
 Three things about the overrides are deliberate and worth knowing:
@@ -189,22 +199,23 @@ cutoff in *all* data sets. One study detecting it is enough to keep it.
 
 **`pval_both` is the consequential switch.** `FALSE` (the default) means a
 gene need clear the p-value threshold in only one study; `TRUE` means both.
-Here `"mid"` clears the threshold in scott but not hatten, so it survives as
-a real gene under `FALSE` and is written off as `"unchanged"` under `TRUE`.
 The notebooks ran their cutoff sweeps with it set both ways:
 
 ```{r}
-lenient <- classify_timecourse_genes(gene_table, 2, 0.001,
-                                     c(max_expr_Scott = 100,
-                                       max_expr_Hatten = 100),
+cuts <- c(max_expr_Scott = 100, max_expr_Hatten = 100)
+
+lenient <- classify_timecourse_genes(gnp_timecourse, 2, 0.001, cuts,
                                      pval_both = FALSE, table_only = TRUE)
-strict  <- classify_timecourse_genes(gene_table, 2, 0.001,
-                                     c(max_expr_Scott = 100,
-                                       max_expr_Hatten = 100),
-                                     pval_both = TRUE, table_only = TRUE)
-rbind(lenient = lenient, strict = strict)[, c("Max_P0_7 t50_Mid",
-                                              "unchanged", "unexpressed")]
+strict  <- classify_timecourse_genes(gnp_timecourse, 2, 0.001, cuts,
+                                     pval_both = TRUE,  table_only = TRUE)
+
+rbind(lenient = lenient, strict = strict)
 ```
+
+On the real sample, requiring both studies moves a few hundred transcripts out
+of the developmental categories and into `unchanged`. Which setting you want
+is a judgement about whether a single study missing significance is evidence
+of no change or just of less power — the notebooks reported both.
 
 `table_only = TRUE` returns counts rather than the data frame, and because
 the override levels are declared up front, every call returns the same 11
@@ -217,13 +228,20 @@ categories, `t50window()` splits genes by group, orders each group by t50, and
 chops it into equal-sized windows named by their mean t50:
 
 ```{r}
+# gene, t50, grouping factor -- in that column order
 t50_df <- data.frame(
-  gene  = paste0("g", 1:20),
-  t50   = seq(1, 40, length.out = 20),
-  group = rep("all", 20)
+  gene  = gnp_timecourse$mgi_symbol,
+  t50   = gnp_timecourse$avg_t50,
+  group = classified$max_cat
 )
-windows <- t50window(t50_df, window_number = 4)
-windows[[1]]
+t50_df <- t50_df[!is.na(t50_df$t50) & t50_df$group == "P14_P56", ]
+# the filtered factor still carries its unused levels; t50window() drops them
+
+windows <- t50window(t50_df, window_number = 5)
+dim(windows[[1]])
+# column names are each window's mean t50
+colnames(windows[[1]])
+head(windows[[1]], 3)
 ```
 
 Each column is a window and its name is that window's mean t50, which feeds

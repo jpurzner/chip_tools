@@ -34,6 +34,8 @@ plot_anova_tukey <- function(data, response_var, group_var1, group_var2,
                              comparison_var, y_label, title_prefix = "",
                              block_var = NULL) {
   
+  require_pkg("ggpubr", "patchwork")
+
   # Perform ANOVA for each group
   anova_results <- data %>%
     dplyr::group_by(!!rlang::sym(group_var1), !!rlang::sym(group_var2)) %>%
@@ -96,7 +98,7 @@ plot_anova_tukey <- function(data, response_var, group_var1, group_var2,
                 aes_string(x = comparison_var, y = "mean_response"), 
                 size = 1) + 
       # Add Tukey HSD p-values for the current group
-      stat_pvalue_manual(tukey_filtered, 
+      ggpubr::stat_pvalue_manual(tukey_filtered, 
                          label = "p_label",   
                          x = "x",             
                          y.position = "y",    

@@ -103,7 +103,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   center_y  <- mean(outline$y)
   
   # determine the distance to furthest point, better then center for irregular shapped clusters 
-  outline$max_dist <- rowMax(as.matrix(dist(outline[,c("x","y")])))
+  outline$max_dist <- Biobase::rowMax(as.matrix(dist(outline[,c("x","y")])))
   outline$dist2center <- sqrt((outline$x - center_x)^2 + (outline$y - center_y)^2)
   
   #hist(outline$dist2center, breaks =100)
@@ -127,7 +127,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   chull_area <- function(df) {
     chull.coords <- chull(df)
     chull.coords <- df[chull.coords, c(1,2)]
-    chull.poly <- Polygon(chull.coords, hole=F)
+    chull.poly <- sp::Polygon(chull.coords, hole=F)
     chull.area <- chull.poly@area
     num.points <- dim(df)[1]
     if ("opt" %in% colnames(df)) {
@@ -153,9 +153,9 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
     
     dbscan_area <- function (df, dbscan_eps, dbscan_minp, k = 1, min_points = 30,  area = FALSE) {
       
-      opt <- optics(df[,c(1,2)], eps = dbscan_eps, minPts = dbscan_minp)
+      opt <- dbscan::optics(df[,c(1,2)], eps = dbscan_eps, minPts = dbscan_minp)
       #plot(opt)
-      opt <- extractDBSCAN(opt, eps_cl = dbscan_eps)
+      opt <- dbscan::extractDBSCAN(opt, eps_cl = dbscan_eps)
       df$opt <-  opt$cluster
       
       
@@ -253,7 +253,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   remove_inner <- function(df,window_size = remove_inner_window_size, filter_knn = TRUE, knn_mean = 2.5, max_dist = FALSE) {
     # remove points that are not crowded 
     if (filter_knn) {
-      nn <- kNN(df[,c(1,2)], window_size)
+      nn <- dbscan::kNN(df[,c(1,2)], window_size)
       which(apply(nn$dist, 1, max) < 3)
       keep_far <- which(apply(nn$dist, 1, mean) > knn_mean)
     }
@@ -285,7 +285,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
       
       outline_nocenter <- lapply(c(1, dim(outline_nocenter)[2]), function(n)  as.data.frame(outline_nocenter[,n]))
       
-      #poly_list <- lapply(outline_nocenter,function(x)   Polygon(as.matrix(x[,c(1,2)])))
+      #poly_list <- lapply(outline_nocenter,function(x)   sp::Polygon(as.matrix(x[,c(1,2)])))
       #polys_list <-  lapply(c(1:length(poly_list)) ,function(n) Polygons(poly_list[n], n)) 
       #polysp_list <- lapply(polys_list, function(x) SpatialPolygons(list(x)))
       
@@ -335,8 +335,8 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   if (kern) {
     kern_outline <- function(outline_nocenter) { 
       outline_nocenter <-  order_clockwise(outline_nocenter, centers = order_k)
-      fit_y <- locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$y, bandwidth = kernel_width)
-      fit_x <- locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$x, bandwidth = kernel_width)
+      fit_y <- KernSmooth::locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$y, bandwidth = kernel_width)
+      fit_x <- KernSmooth::locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$x, bandwidth = kernel_width)
       outline_kern <- data.frame(x = fit_x$y, y =  fit_y$y, opt = unique(outline_nocenter$opt))
       outline_kern <- outline_kern[prevR::orderPoints(outline_kern$x, outline_kern$y,clockwise =  TRUE),]
       return(outline_kern)

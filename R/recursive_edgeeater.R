@@ -29,6 +29,8 @@
 #' }
 #' @export
 recursive_edgeeater <- function(g, end_num, memb_cutoff = 0, verbose = FALSE) {
+  require_pkg("igraph")
+
   # iterates through the 
   
   v_num <- length(igraph::V(g))

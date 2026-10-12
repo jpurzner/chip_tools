@@ -81,7 +81,7 @@ plot_tsne_optics <- function(data_log, tsne, k, meta = NULL) {
   color_vals <-  colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
   
   if (is.null(meta)) {
-    h1 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+    h1 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
                    cluster_rows=FALSE,cluster_cols=FALSE, 
                    show_rownames = FALSE, 
                    color =  color_vals,
@@ -91,7 +91,7 @@ plot_tsne_optics <- function(data_log, tsne, k, meta = NULL) {
                    fontsize_row = 12,
                    silent = TRUE)  
   } else {
-    h1 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+    h1 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
                    cluster_rows=FALSE,cluster_cols=FALSE, 
                    show_rownames = FALSE,
                    #show_colnames = FALSE,
@@ -119,7 +119,7 @@ plot_tsne_optics <- function(data_log, tsne, k, meta = NULL) {
   heat_anno <- as.data.frame(data_log[,c((dim(data_log)[2]-1):(dim(data_log)[2]))])
   
   if (is.null(meta)) {
-    h2 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+    h2 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
                  cluster_rows=FALSE,cluster_cols=TRUE, 
                  show_rownames = FALSE,
                  color =  color_vals,
@@ -129,7 +129,7 @@ plot_tsne_optics <- function(data_log, tsne, k, meta = NULL) {
                  fontsize_row = 12,
                  silent = TRUE)
   } else {
-    h2 <- pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
+    h2 <- pheatmap::pheatmap(data_log[c(1:(dim(data_log)[2]-2))], 
       cluster_rows=FALSE,cluster_cols=FALSE, 
       show_rownames = FALSE,
       color =  color_vals,
@@ -149,15 +149,15 @@ plot_tsne_optics <- function(data_log, tsne, k, meta = NULL) {
   h2 <- h2$gtable
 
   # this needs to be adjust the following grob indexes 
-  h1 <- gtable_remove_grobs(h1, names = c( "annotation_legend", "legend", "col_annotation_names"))
-  h2 <- gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names"))
+  h1 <- cowplot::gtable_remove_grobs(h1, names = c( "annotation_legend", "legend", "col_annotation_names"))
+  h2 <- cowplot::gtable_remove_grobs(h2, names = c( "annotation_legend", "legend", "col_annotation_names"))
   
   #print(h2)
   
   bg <- rectGrob(gp = gpar(alpha = 0))
   
   g_mat <- matrix(list(g1,bg,g2,bg,h1,bg,h2,bg), ncol = 2)
-  gt_mat <- gtable_matrix("demo", grobs = g_mat,  
+  gt_mat <- gtable::gtable_matrix("demo", grobs = g_mat,  
                           widths = unit(c(2,2), "null"),
                           heights = unit(c(1,0.2,1,0.2), "null"))
   grid.newpage()

@@ -247,11 +247,11 @@ re_name <- {}
   
   # handle case with a list of genes      
   if (length(expr_list) > 1) {
-    p <- p + geom_text_repel(aes(label=time), 
+    p <- p + ggrepel::geom_text_repel(aes(label=time), 
                     nudge_y = ifelse(mean_expr$ds == names(meta_list)[2], -0.5, ifelse(mean_expr$ds == names(meta_list)[1], 0.5, 0.75)), 
                     size = text_size*(4/14), force =1 ) 
   } else {
-    p <- p + geom_text_repel(aes(label=time), 
+    p <- p + ggrepel::geom_text_repel(aes(label=time), 
                       nudge_y = 0.5, 
                       size = text_size*(4/14), force =1 ) 
   }  
