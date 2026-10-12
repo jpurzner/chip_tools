@@ -39,7 +39,7 @@ time_expr_interp <- function(expr_list, time_ref, meta = NULL ) {
   #   E20 FALSE  FALSE
   #
   # generated like this 
-  # time_ref  <- data.frame( time = c(str_c("E", c(15:20)), str_c("P", c(0:56)))) 
+  # time_ref  <- data.frame( time = c(paste0("E", 15:20), paste0("P", 0:56))) 
   # time_ref$scott <- time_ref$time %in% c("E15", "P1", "P7", "P14")
   # time_ref$hatten <- time_ref$time %in% c("P0","P7","P12","P18","P21","P56")
   #

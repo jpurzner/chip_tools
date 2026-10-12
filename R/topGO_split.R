@@ -27,7 +27,7 @@
 #' }
 #' @export
 topGO_split <- function(t50_df, all_genes, split_cat,  ont = "BP",  test = FALSE) {
-  require_pkg("org.Mm.eg.db", "GO.db", "reshape", "stringr", "parallel", "topGO")
+  require_pkg("org.Mm.eg.db", "GO.db", "reshape", "parallel", "topGO")
 
 
   # set1 and set2 are the  column names or index that define the selected   

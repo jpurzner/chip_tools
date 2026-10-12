@@ -58,8 +58,11 @@ boundary points clockwise and optionally drops interior points.
 }
 \section{Dependencies}{
 
-Needs \code{prevR} for \code{orderPoints()}, which was never declared in the original
-and is the usual reason this function failed on a fresh machine.
+\code{orderPoints()} is from \code{contoureR}, which this function already needed for
+its contour step. It was never declared as the source of \code{orderPoints()}
+though, which is the usual reason this failed on a fresh machine. A note
+added in 0.1.0 attributed it to \code{prevR}; that was wrong — \code{prevR} has never
+exported a function of that name.
 }
 
 \examples{

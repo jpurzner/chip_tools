@@ -39,7 +39,7 @@
 # de_prefix (the text to prepend the results of DEseq)
 
 chip_de_rpm <- function(count_df, meta, de_prefix, verbose = FALSE) {
-  require_pkg("DESeq2", "stringr")
+  require_pkg("DESeq2")
 
 
 # setup metadata data.frame

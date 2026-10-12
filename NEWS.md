@@ -1,3 +1,91 @@
+# chiptools 0.4.0
+
+Clears the last blocking limitation: every function in the package now runs on
+a current R installation.
+
+## remove_intersect_all() ported from rgeos to sf
+
+`rgeos` was archived from CRAN in October 2023, so this function could not run
+at all. The calls map across directly:
+
+| was | now |
+| --- | --- |
+| `rgeos::gIntersects()` | `sf::st_intersects()` |
+| `rgeos::gBuffer(width = 0)` | `sf::st_make_valid()` |
+| `rgeos::gDifference()` | `sf::st_difference()` |
+| `sp::Polygon()` etc. | `sf::st_polygon()` |
+| `raster::geom()` | `sf::st_coordinates()` |
+
+The zero-width-buffer trick for repairing self-intersecting rings becomes
+`st_make_valid()`, which is what it was always emulating.
+
+Writing the tests established what the function actually guarantees, which was
+never documented: the returned outlines have **zero pairwise overlapping
+area**, and their total area equals the area of the union of the inputs.
+Nothing is lost and nothing double-counted. Subtraction is *sequential*, not
+symmetric — contested area goes to the higher-indexed cluster — which the
+documentation now says instead of the reverse.
+
+Four bugs surfaced in the course of the port, none of which could ever have
+been hit while the function was unrunnable:
+
+- With no intersecting pairs, `for (n in 1:nrow(comparison))` ran once with
+  `n = 1` against a zero-row frame and errored. Non-overlapping input now
+  passes straight through.
+- `gDifference()` returns `NULL` when one polygon is wholly inside another,
+  and that `NULL` went unguarded into `raster::geom()`. Fully consumed
+  clusters now return zero rows.
+- Intersections were tested once against the *original* polygons and then
+  subtracted in a loop that mutated them, so every test after the first was
+  stale. Each pair is now re-tested against current geometry.
+- Rings were not closed before polygon construction. `sp` tolerated it; `sf`
+  does not.
+
+`passes` is now an argument rather than a hard-coded 5.
+
+## orderPoints() is from contoureR, not prevR
+
+A note added in 0.1.0 attributed `orderPoints()` to `prevR`. That was wrong —
+`prevR` has never exported a function of that name. It is `contoureR`, which
+`outline_tsne()` already depended on for its contour step.
+
+The consequence was not cosmetic. The call sat inside a `try()`, so with
+`prevR` listed it failed silently and **the point reordering did nothing at
+all**. Making it work exposed the next problem: ordering and spur-trimming
+points *across* rings mixes a hole's boundary into its container's and
+produces a self-intersecting path. Both steps are now applied per ring, and
+the returned frames carry a `ring` column so callers can keep them apart.
+
+## Suggests pruned
+
+`rgeos`, `prevR`, `sp` and `raster` are gone, as above. An audit also found
+`cluster`, `naturalsort` and `stringr` declared but never called —
+`naturalsort` only ever appeared in commented-out `require()` lines, and the
+last `str_c()` went when 0.3.0 replaced it with `paste0()`. Every remaining
+`Suggests` entry is now actually reachable from the code, which a check in
+the build asserts.
+
+## sp and raster dropped
+
+`outline_tsne()` used `sp::Polygon(...)@area` for one number: the area of a
+convex hull. That is the shoelace formula, which is exact for a simple polygon
+and needs no dependency — verified identical to `sp` to ten decimal places.
+
+With that and the `rgeos` port, `sp`, `raster` and `rgeos` are gone from
+`Suggests` entirely. `sf` is the only spatial dependency left.
+
+## License detection
+
+GitHub reported the license as `NOASSERTION`, because its detector reads
+`LICENSE` while R's `MIT + file LICENSE` convention wants that file to hold
+only the year and copyright holder. Both are satisfied now: `LICENSE` carries
+the full MIT text (and is `.Rbuildignore`d), and `DESCRIPTION` points at
+`LICENSE.note` for R's two-line form.
+
+252 testthat assertions, up from 222. `R CMD check` clean with one NOTE
+(`Mfuzz`, a Bioconductor package, not installed on the check machine) — down
+from four, since `rgeos`, `prevR`, `sp` and `raster` are all gone.
+
 # chiptools 0.3.0
 
 Adds four example datasets, and fixes a dependency-resolution regression
