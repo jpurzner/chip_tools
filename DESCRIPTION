@@ -1,7 +1,7 @@
 Package: chiptools
 Type: Package
 Title: Miscellaneous ChIP-seq and RNA-seq Processing Functions
-Version: 0.3.0
+Version: 0.4.0
 Authors@R:
     person("James", "Purzner", email = "jpurzner@gmail.com", role = c("aut", "cre"))
 Description: Analysis helpers accumulated across the GNP/MB cerebellar
@@ -40,7 +40,6 @@ Suggests:
     AnnotationDbi,
     Biobase,
     biomaRt,
-    cluster,
     contoureR,
     cowplot,
     DESeq2,
@@ -61,22 +60,16 @@ Suggests:
     mclust,
     Mfuzz,
     mixtools,
-    naturalsort,
     org.Mm.eg.db,
     parallel,
     patchwork,
     pbapply,
     pheatmap,
-    prevR,
     pROC,
-    raster,
     rmarkdown,
     scales,
     reshape,
-    rgeos,
     sf,
-    sp,
-    stringr,
     SummarizedExperiment,
     testthat (>= 3.0.0),
     topGO

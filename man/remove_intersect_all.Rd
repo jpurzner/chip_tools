@@ -7,52 +7,115 @@
 remove_intersect_all(
   tsne_outl,
   point_dist_window = 2,
-  kern = FALSE,
-  strip_path_dist = 1
+  strip_path_dist = 1,
+  passes = 5,
+  kern = FALSE
 )
 }
 \arguments{
 \item{tsne_outl}{List of per-cluster boundary data frames from
-\code{\link[=outline_tsne]{outline_tsne()}}.}
+\code{\link[=outline_tsne]{outline_tsne()}}. The first two columns are taken as x and y.}
 
 \item{point_dist_window}{Rolling window used to smooth point-to-point
 distances before trimming.}
 
-\item{kern}{Unused; retained for call compatibility.}
+\item{strip_path_dist}{Points whose smoothed neighbour distance exceeds
+this are dropped, which removes the long spurs polygon subtraction leaves
+behind.}
 
-\item{strip_path_dist}{Points whose smoothed neighbour distance exceeds this
-are dropped, which removes the long spurs left by polygon subtraction.}
+\item{passes}{Number of subtract/reorder/trim passes after the first. Was
+hard-coded to 5.}
+
+\item{kern}{Unused; retained for call compatibility.}
 }
 \value{
-A list of non-overlapping boundary data frames.
+A list of boundary data frames with columns \code{x}, \code{y}, \code{ring} and
+\code{k}, one per input cluster and in the same order. Clusters entirely
+consumed by their neighbours come back as zero-row frames rather than
+being dropped, so the list stays aligned with the input.
+
+\code{ring} identifies the closed path a point belongs to. A cluster with a
+hole punched in it has more than one: the outer boundary and the hole.
+Plot or smooth each ring separately — flattening them gives a
+self-intersecting path.
 }
 \description{
 Takes the polygons from \code{\link[=outline_tsne]{outline_tsne()}} and iteratively subtracts
 overlapping regions so no two outlines intersect, re-ordering and
-re-trimming the boundary after each pass.
+re-trimming each boundary after every pass.
 }
-\section{Dependencies}{
+\details{
+Subtraction is sequential, not symmetric: cluster \code{i} has every other
+cluster subtracted from it in index order, using each neighbour's
+\emph{current} geometry. So where two outlines overlap, the contested region
+ends up with the higher-indexed cluster, and the lower-indexed one gives
+way.
 
-Requires \code{rgeos}, \strong{archived from CRAN in October 2023}. The function
-therefore cannot run on a current R installation without installing rgeos
-from the archive. Porting the three \code{rgeos} calls
-(\code{gIntersects}/\code{gBuffer}/\code{gDifference}) to \code{sf}
-(\code{st_intersects}/\code{st_buffer}/\code{st_difference}) is the fix; \code{sf} is listed in
-\code{Suggests} in anticipation. Also needs \code{prevR} for \code{orderPoints()}, which
-was never declared.
+The guarantee that matters is checked by the package tests: the returned
+outlines have \strong{zero pairwise overlapping area}, and their total area
+equals the area of the union of the inputs. Nothing is lost and nothing is
+double-counted, which is what makes the result safe to shade.
+}
+\section{Ported from rgeos to sf}{
+
+This used \code{rgeos}, which was \strong{archived from CRAN in October 2023}, so it
+could not run on a current R installation at all. The three calls map
+across directly:\tabular{ll}{
+   was \tab now \cr
+   \code{rgeos::gIntersects()} \tab \code{\link[sf:geos_binary_pred]{sf::st_intersects()}} \cr
+   \code{rgeos::gBuffer(width = 0)} \tab \code{\link[sf:valid]{sf::st_make_valid()}} \cr
+   \code{rgeos::gDifference()} \tab \code{\link[sf:geos_binary_ops]{sf::st_difference()}} \cr
+   \code{sp::Polygon()} etc. \tab \code{\link[sf:st]{sf::st_polygon()}} \cr
+   \code{raster::geom()} \tab \code{\link[sf:st_coordinates]{sf::st_coordinates()}} \cr
 }
 
-\section{Fixes}{
 
-Point-to-point distance was computed as \code{sqrt(dy^2 + dy^2)} — the x
-difference was never used, so the spur filter cut on the y axis alone.
+\code{sp} and \code{raster} are no longer needed either. The zero-width-buffer trick
+for repairing self-intersecting rings is now \code{st_make_valid()}, which is
+what it was always emulating.
+}
+
+\section{Other fixes}{
+
+\itemize{
+\item Point-to-point distance was \code{sqrt(dy^2 + dy^2)} — the x difference was
+never used, so the spur filter cut on the y axis alone.
+\item With no intersecting pairs, \verb{for (n in 1:nrow(comparison))} ran once with
+\code{n = 1} against a zero-row frame and errored. Non-overlapping input now
+passes straight through.
+\item \code{gDifference()} returns \code{NULL} when one polygon is wholly inside another.
+That was fed to \code{raster::geom()} unguarded, which errored. Fully consumed
+clusters now return zero rows.
+\item Intersections were tested once against the \emph{original} polygons, then
+subtracted in a loop that mutated them — so after the first subtraction
+the remaining tests were stale. Each pair is now re-tested against the
+current geometry.
+\item Rings are closed before being made into polygons; sf requires it and
+\code{sp} did not.
+\item \code{orderPoints()} is from \code{contoureR}, not \code{prevR}. A note added in 0.1.0
+said \code{prevR}, which has never exported a function of that name — so the
+call was failing inside a \code{try()} and the point reordering was silently
+doing nothing. With it working, point ordering and spur trimming had to
+be made per-ring: applied across rings they mix a hole boundary into its
+container and produce a self-intersecting path.
+}
 }
 
 \examples{
-\dontrun{
-clean <- remove_intersect_all(outline_tsne(tsne_res))
+# two overlapping squares
+sq <- function(x0, y0, w = 1) {
+  data.frame(x = c(x0, x0 + w, x0 + w, x0),
+             y = c(y0, y0, y0 + w, y0 + w))
+}
+outlines <- list(sq(0, 0), sq(0.5, 0.5))
+
+if (requireNamespace("sf", quietly = TRUE) &&
+    requireNamespace("contoureR", quietly = TRUE)) {
+  clean <- remove_intersect_all(outlines, strip_path_dist = 10, passes = 1)
+  vapply(clean, nrow, integer(1))
 }
 }
 \seealso{
-\code{\link[=outline_tsne]{outline_tsne()}}, \code{\link[=spline.poly]{spline.poly()}}
+\code{\link[=outline_tsne]{outline_tsne()}} to produce the input, \code{\link[=spline.poly]{spline.poly()}} to smooth
+the result, \code{\link[=plot_tsne_kmeans]{plot_tsne_kmeans()}}
 }

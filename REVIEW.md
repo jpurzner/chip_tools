@@ -370,8 +370,8 @@ first call. The repository version was correct and is what the package carries.
 
 Not done here, since this pass was restructure-and-fix rather than rewrite:
 
-1. **Port `remove_intersect_all()` off `rgeos`** to `sf`. It is the only
-   function that cannot run on current R.
+1. ~~**Port `remove_intersect_all()` off `rgeos`** to `sf`.~~ Done in 0.4.0;
+   `sp` and `raster` went with it.
 2. **`chip_categorize_and_collapse()`** uses `rowwise()` with
    `across(everything())` — the obvious bottleneck on a large gene table.
 3. **`enhancer_quant()`** compares every promoter against every enhancer per

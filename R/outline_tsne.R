@@ -24,8 +24,11 @@
 #' @return A list of per-cluster data frames of boundary `x`, `y` and `k`.
 #'
 #' @section Dependencies:
-#' Needs `prevR` for `orderPoints()`, which was never declared in the original
-#' and is the usual reason this function failed on a fresh machine.
+#' `orderPoints()` is from `contoureR`, which this function already needed for
+#' its contour step. It was never declared as the source of `orderPoints()`
+#' though, which is the usual reason this failed on a fresh machine. A note
+#' added in 0.1.0 attributed it to `prevR`; that was wrong — `prevR` has never
+#' exported a function of that name.
 #'
 #' @seealso [remove_intersect_all()] to resolve overlaps between the outlines,
 #'   [spline.poly()] to smooth them, [plot_tsne_kmeans()]
@@ -41,7 +44,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
                          dbscan_k = 1, order_k = 1,
                         kernel_width = 5, 
                          debug_outline = "none") {
-  require_pkg("contoureR", "KernSmooth", "dbscan", "sp", "Biobase", "prevR")
+  require_pkg("contoureR", "KernSmooth", "dbscan", "Biobase")
 
   # tsne coords listed as x and y columns in df 
   # debug options "outline_rot", "dbscan_parameters", "dbscan_results", "remove_inner"
@@ -116,7 +119,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   #outline_nocenter <- outline_nocenter %>%
   #  filter(dist2center > id2$stats[1] & dist2center < id2$stats[5])
   
-  outline_nocenter <- outline_nocenter[prevR::orderPoints(outline_nocenter$x, outline_nocenter$y,clockwise =  TRUE),]
+  outline_nocenter <- outline_nocenter[contoureR::orderPoints(outline_nocenter$x, outline_nocenter$y,clockwise =  TRUE),]
   
   if (debug_outline == "outline_rot") {
     return(outline_nocenter)
@@ -127,8 +130,13 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   chull_area <- function(df) {
     chull.coords <- chull(df)
     chull.coords <- df[chull.coords, c(1,2)]
-    chull.poly <- sp::Polygon(chull.coords, hole=F)
-    chull.area <- chull.poly@area
+    # Shoelace formula. Was sp::Polygon(...)@area, which pulled in sp for a
+    # single number; sp is in maintenance mode and was the last reason this
+    # package needed it.
+    cx <- chull.coords[[1]]
+    cy <- chull.coords[[2]]
+    chull.area <- abs(sum(cx * c(cy[-1], cy[1]) -
+                          c(cx[-1], cx[1]) * cy)) / 2
     num.points <- dim(df)[1]
     if ("opt" %in% colnames(df)) {
       res <- c(chull.area, num.points, df$opt[1])
@@ -272,14 +280,14 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
   
   order_clockwise <- function(outline_nocenter, centers = 1) {
     if (centers == 1) {
-      outline_nocenter <- outline_nocenter[prevR::orderPoints(outline_nocenter$x, outline_nocenter$y,clockwise =  TRUE),]
+      outline_nocenter <- outline_nocenter[contoureR::orderPoints(outline_nocenter$x, outline_nocenter$y,clockwise =  TRUE),]
       return(outline_nocenter)
     } else {
       k_obj <- kmeans(outline_nocenter, centers = centers)
       outline_nocenter$km <- k_obj$cluster 
       outline_nocenter <- split(outline_nocenter, outline_nocenter$km) 
       outline_nocenter <- mapply(function(outline, kc) {
-        df <- outline[prevR::orderPoints(outline$x, outline$y,clockwise =  TRUE, xm = kc[1], ym = kc[2] ),]
+        df <- outline[contoureR::orderPoints(outline$x, outline$y,clockwise =  TRUE, xm = kc[1], ym = kc[2] ),]
         return(df)
       }, outline_nocenter,split(k_obj$centers, seq(nrow(k_obj$centers))), SIMPLIFY = TRUE)
       
@@ -338,7 +346,7 @@ outline_tsne <- function(df, kern = TRUE, rem_dist = 0,  dec = 0 ,
       fit_y <- KernSmooth::locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$y, bandwidth = kernel_width)
       fit_x <- KernSmooth::locpoly(c(1:length(outline_nocenter$x)), outline_nocenter$x, bandwidth = kernel_width)
       outline_kern <- data.frame(x = fit_x$y, y =  fit_y$y, opt = unique(outline_nocenter$opt))
-      outline_kern <- outline_kern[prevR::orderPoints(outline_kern$x, outline_kern$y,clockwise =  TRUE),]
+      outline_kern <- outline_kern[contoureR::orderPoints(outline_kern$x, outline_kern$y,clockwise =  TRUE),]
       return(outline_kern)
     }
     if (dbscan_k > 1) {

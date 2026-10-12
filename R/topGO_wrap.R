@@ -45,8 +45,8 @@ topGO_wrap <- function(data, set1, name,
   # Additionally, it allows the removal of GO terms with p-values above a specified threshold.
   
   # Verify that the 'name' column exists in 'data'
-  require_pkg("org.Mm.eg.db", "GO.db", "reshape", "stringr", "parallel",
-              "topGO", "GOSemSim", "cluster")
+  require_pkg("org.Mm.eg.db", "GO.db", "reshape", "parallel",
+              "topGO", "GOSemSim")
 
   # Verify that the 'name' column exists in 'data'
   if (!name %in% colnames(data)) {

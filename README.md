@@ -93,7 +93,7 @@ starts, hold it out, cluster what's left.
 | `replot_tsne_kmeans()` | redraw one panel without re-clustering |
 | `plot_tsne_optics()` | the same with OPTICS density clustering |
 | `outline_tsne()` | trace polygons around clusters for shading |
-| `remove_intersect_all()` | resolve overlaps between those polygons — **see Known limitations** |
+| `remove_intersect_all()` | resolve overlaps between those polygons (sf-based) |
 | `spline.poly()` | smooth the polygons |
 | `plot_cluster_line()`, `plot_cluster_line_EBseq()`, `plot_cluster_line_interp()` | mean trajectory per cluster |
 | `plot_group_timeline()` | cluster trajectories ordered along a shared timeline |
@@ -208,11 +208,6 @@ hard-wired to mouse annotation (`org.Mm.eg.db`).
 
 ## Known limitations
 
-- **`remove_intersect_all()` cannot run on current R.** It needs `rgeos`, which
-  was archived from CRAN in October 2023. The three calls
-  (`gIntersects`/`gBuffer`/`gDifference`) map onto
-  `sf::st_intersects`/`st_buffer`/`st_difference`; `sf` is already in
-  `Suggests` in anticipation. Until then, install `rgeos` from the CRAN archive.
 - **`expr_half_max_min()` only works on a matrix**, not a list. The list branch
   collapses its six-element result to a single number. Use `lapply()` over your
   data sets instead.
