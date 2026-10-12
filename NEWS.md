@@ -77,14 +77,22 @@ With that and the `rgeos` port, `sp`, `raster` and `rgeos` are gone from
 ## License detection
 
 GitHub reported the license as `NOASSERTION`, because its detector reads
-`LICENSE` while R's `MIT + file LICENSE` convention wants that file to hold
-only the year and copyright holder. Both are satisfied now: `LICENSE` carries
-the full MIT text (and is `.Rbuildignore`d), and `DESCRIPTION` points at
-`LICENSE.note` for R's two-line form.
+`LICENSE` while R's `MIT + file LICENSE` convention wants that file to be
+valid DCF — just `YEAR` and `COPYRIGHT HOLDER`.
 
-252 testthat assertions, up from 222. `R CMD check` clean with one NOTE
-(`Mfuzz`, a Bioconductor package, not installed on the check machine) — down
-from four, since `rgeos`, `prevR`, `sp` and `raster` are all gone.
+These turn out to be mutually exclusive. Pointing `DESCRIPTION` at a
+differently named file is rejected (`Non-standard license specification`; the
+filename is not negotiable), and GitHub ignores `LICENSE.md` whenever
+`LICENSE` exists. So `LICENSE` now carries the full MIT text, GitHub detects
+it, and `R CMD check` reports `License stub is invalid DCF` — a NOTE, not a
+warning, and a deliberate trade on a package that is not going to CRAN. It is
+documented in the README so it is not mistaken for an oversight.
+
+252 testthat assertions, up from 222. `R CMD check` reports two NOTEs, both
+benign and both documented in the README: `Mfuzz` not installed on the check
+machine, and the deliberate license stub above. The dependency NOTE is down
+from four packages to one, since `rgeos`, `prevR`, `sp` and `raster` are all
+gone.
 
 # chiptools 0.3.0
 
